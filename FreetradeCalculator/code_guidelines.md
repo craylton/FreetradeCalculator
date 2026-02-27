@@ -4,12 +4,13 @@ Readable, Simple, Minimal, and Modern code is our focus. This basically means we
 - Following clean code principles naturally leads to simple, readable code
 - Adding lines of code is like adding weight to a plane - it better be worth it!
 
-# General Guidelines
+# General Guideline Checklist
 
-When reviewing code, consider the following:
+When writing or reviewing code, consider the following:
 - Is the code easy to read and understand?
 - Does the code overcomplicate things?
 - Could any surplus functionality be removed?
+- Are variables, methods, and classes named clearly and descriptively?
 - Are there any modern C# or .NET features that could be used to improve the code?
 - Is the code consistent with the rest of the codebase?
 - Are there any code smells present?

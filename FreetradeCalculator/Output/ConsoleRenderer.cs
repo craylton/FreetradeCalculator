@@ -5,46 +5,60 @@ namespace FreetradeCalculator.Output;
 
 public static class ConsoleRenderer
 {
-	public static void Render(IReadOnlyList<PositionSummary> summaries)
-	{
-		if (summaries.Count == 0)
-		{
-			Console.WriteLine("No ORDER trades found.");
-			return;
-		}
+    private record ColumnDefinition(string Header, Func<PositionSummary, string> GetValue, bool AlignRight = true)
+    {
+        public Column ToColumn(IReadOnlyList<PositionSummary> summaries)
+        {
+            string[] values = [.. summaries.Select(GetValue)];
+            int width = Math.Max(Header.Length, values.Max(value => value.Length));
+            return new Column(Header, values, width, AlignRight);
+        }
+    }
 
-		string[] headers = ["Title", "Bought", "Sold", "Remaining", "Realised P&L", "Sell Proceeds", "Cost Basis"];
+    private record Column(string Header, IReadOnlyList<string> Values, int Width, bool AlignRight)
+    {
+        public string FormatHeaderCell() => FormatCell(Header);
 
-        string[][] rows = [.. summaries.Select(ToRow)];
+        public string FormatCell(int row) => FormatCell(Values[row]);
 
-        int[] widths = [.. headers.Select((header, i) => rows.Select(row => row[i].Length).Prepend(header.Length).Max())];
+        private string FormatCell(string value) =>
+            AlignRight ? value.PadLeft(Width) : value.PadRight(Width);
+    }
 
-		WriteRow(headers, widths);
-		WriteSeparator(widths);
-		foreach (string[] row in rows)
-			WriteRow(row, widths);
-	}
+    private static readonly ColumnDefinition[] ColumnDefinitions =
+    [
+        new("Title", s => s.Title, false),
+        new("Bought", s => FormatQuantity(s.TotalBought)),
+        new("Sold", s => FormatQuantity(s.TotalSold)),
+        new("Remaining", s => FormatQuantity(s.RemainingQuantity)),
+        new("Realised P&L", s => FormatMoney(s.RealisedProfit)),
+        new("Sell Proceeds", s => FormatMoney(s.TotalSellProceeds)),
+        new("Cost Basis", s => FormatMoney(s.TotalCostBasisOfSoldShares))
+    ];
 
-	private static string[] ToRow(PositionSummary summary) =>
-	[
-		summary.Title,
-		FormatQuantity(summary.TotalBought),
-		FormatQuantity(summary.TotalSold),
-		FormatQuantity(summary.RemainingQuantity),
-		FormatMoney(summary.RealisedProfit),
-		FormatMoney(summary.TotalSellProceeds),
-		FormatMoney(summary.TotalCostBasisOfSoldShares),
-	];
+    public static void Render(IReadOnlyList<PositionSummary> summaries)
+    {
+        if (summaries.Count == 0)
+        {
+            Console.WriteLine("No positions found.");
+            return;
+        }
 
-	private static void WriteSeparator(int[] widths) =>
-		Console.WriteLine(string.Join("-+-", widths.Select(width => new string('-', width))));
+        Column[] columns = [.. ColumnDefinitions.Select(definition => definition.ToColumn(summaries))];
 
-	private static void WriteRow(string[] columns, int[] widths)
-	{
-        IEnumerable<string> paddedColumns = columns.Select((column, i) => i == 0 ? column.PadRight(widths[i]) : column.PadLeft(widths[i]));
-		Console.WriteLine(string.Join(" | ", paddedColumns));
-	}
+        IEnumerable<string> headers = columns.Select(column => column.FormatHeaderCell());
+        Console.WriteLine(string.Join(" | ", headers));
 
-	private static string FormatQuantity(decimal value) => value.ToString("0.########", CultureInfo.InvariantCulture);
-	private static string FormatMoney(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
+        IEnumerable<string> separators = columns.Select(column => new string('-', column.Width));
+        Console.WriteLine(string.Join("-+-", separators));
+
+        for (int i = 0; i < summaries.Count; i++)
+        {
+            IEnumerable<string> cells = columns.Select(column => column.FormatCell(i));
+            Console.WriteLine(string.Join(" | ", cells));
+        }
+    }
+
+    private static string FormatQuantity(decimal value) => value.ToString("0.########", CultureInfo.InvariantCulture);
+    private static string FormatMoney(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
 }

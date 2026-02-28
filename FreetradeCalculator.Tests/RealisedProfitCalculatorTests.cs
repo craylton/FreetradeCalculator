@@ -1,6 +1,6 @@
 using FreetradeCalculator.Calculators;
-using FreetradeCalculator.Calculators.Strategies;
 using FreetradeCalculator.Domain;
+using NSubstitute;
 
 namespace FreetradeCalculator.Tests;
 
@@ -14,60 +14,75 @@ public sealed class RealisedProfitCalculatorTests
 	private static Trade Sell(string title, int dayOffset = 0) =>
 		new(title, TradeSide.Sell, 1, 1m, BaseTime.AddDays(dayOffset));
 
-    private sealed class FakeTracker(string title) : IPositionTrackingStrategy
-    {
-        public List<Trade> ProcessedTrades { get; } = [];
-        public void ProcessBuy(Trade trade) => ProcessedTrades.Add(trade);
-        public void ProcessSell(Trade trade) => ProcessedTrades.Add(trade);
-        public PositionSummary ToSummary() => new(title, 0, 0, 0, 0);
-    }
-
-    private sealed class FakeFactory : IPositionTrackerFactory
-    {
-        public List<FakeTracker> Trackers { get; } = [];
-        public IPositionTrackingStrategy Create(PriceTrackingStrategy strategy, string title)
-        {
-            var tracker = new FakeTracker(title);
-            Trackers.Add(tracker);
-            return tracker;
-        }
-    }
-
 	[Fact]
 	public void Calculate_WhenTwoTitles_CalculatesEachSeparately()
 	{
-		Trade[] trades = [ Buy("AAA"), Buy("BBB"), Sell("AAA") ];
-        var factory = new FakeFactory();
-        var calculator = new RealisedProfitCalculator(factory);
-		
-        var results = calculator.Calculate(trades, PriceTrackingStrategy.Fifo);
+		var buyA = Buy("AAA");
+		var buyB = Buy("BBB");
+		var sellA = Sell("AAA");
+		Trade[] trades = [ buyA, buyB, sellA ];
 
-        Assert.Equal(2, results.Count);
-        Assert.Equal(2, factory.Trackers.Count);
-        Assert.Contains(factory.Trackers, t => t.ProcessedTrades.Count == 2); // AAA
-        Assert.Contains(factory.Trackers, t => t.ProcessedTrades.Count == 1); // BBB
+		var trackerA = Substitute.For<IPositionTrackingStrategy>();
+		trackerA.ToSummary().Returns(new PositionSummary("AAA", 0, 0, 0, 0));
+
+		var trackerB = Substitute.For<IPositionTrackingStrategy>();
+		trackerB.ToSummary().Returns(new PositionSummary("BBB", 0, 0, 0, 0));
+
+		var calculator = new RealisedProfitCalculator(title => title switch
+		{
+			"AAA" => trackerA,
+			"BBB" => trackerB,
+			_ => throw new Exception()
+		});
+
+		var results = calculator.Calculate(trades);
+
+		Assert.Equal(2, results.Count);
+
+		trackerA.Received(1).ProcessBuy(buyA);
+		trackerA.Received(1).ProcessSell(sellA);
+		trackerA.Received(1).ToSummary();
+
+		trackerB.Received(1).ProcessBuy(buyB);
+		trackerB.Received(1).ToSummary();
 	}
 
 	[Fact]
 	public void Calculate_WhenTradesAreUnordered_ProcessesChronologically()
 	{
-        Trade[] trades = [ Buy("AAA", dayOffset: 1), Buy("AAA", dayOffset: 0) ];
-        var factory = new FakeFactory();
-        var calculator = new RealisedProfitCalculator(factory);
+		var buyLater = Buy("AAA", dayOffset: 1);
+		var buyEarlier = Buy("AAA", dayOffset: 0);
+		Trade[] trades = [ buyLater, buyEarlier ];
 
-        calculator.Calculate(trades, PriceTrackingStrategy.Fifo);
+		var trackerMock = Substitute.For<IPositionTrackingStrategy>();
 
-        var tracker = Assert.Single(factory.Trackers);
-        Assert.Equal(2, tracker.ProcessedTrades.Count);
-        Assert.Equal(BaseTime, tracker.ProcessedTrades[0].Timestamp);
-        Assert.Equal(BaseTime.AddDays(1), tracker.ProcessedTrades[1].Timestamp);
+		var calculator = new RealisedProfitCalculator(_ => trackerMock);
+
+		calculator.Calculate(trades);
+
+		Received.InOrder(() =>
+		{
+			trackerMock.ProcessBuy(buyEarlier);
+			trackerMock.ProcessBuy(buyLater);
+		});
 	}
 
 	[Fact]
 	public void Calculate_WhenTradeListIsEmpty_ReturnsEmptyList()
-    {
-        var calculator = new RealisedProfitCalculator(new FakeFactory());
-        var results = calculator.Calculate([], PriceTrackingStrategy.Fifo);
-        Assert.Empty(results);
-    }
+	{
+		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
+		var results = calculator.Calculate([]);
+		Assert.Empty(results);
+	}
+
+	[Fact]
+	public void Calculate_WhenTradeSideIsUnknown_ThrowsValidationException()
+	{
+		Trade[] trades = [ new Trade("UNKNOWN", (TradeSide)999, 1, 1m, BaseTime) ];
+		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
+
+		var exception = Assert.Throws<ValidationException>(() => calculator.Calculate(trades));
+
+		Assert.Contains("Unknown trade side", exception.Message);
+	}
 }

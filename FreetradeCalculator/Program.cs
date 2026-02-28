@@ -1,26 +1,25 @@
 ﻿using FreetradeCalculator.Output;
-using FreetradeCalculator;
 using FreetradeCalculator.Domain;
 using FreetradeCalculator.CsvReader;
 using FreetradeCalculator.Calculators;
-using FreetradeCalculator.Calculators.Strategies;
 
-string? inputPath = args.Length > 0 ? args[0] : null;
-if (string.IsNullOrWhiteSpace(inputPath))
+if (args is not [string inputPath])
 {
     Console.Error.WriteLine("Usage: FreetradeCalculator <path-to-trading-history.csv>");
-    Environment.ExitCode = 2;
-    return;
+    return 2;
 }
 
 if (!File.Exists(inputPath))
-    throw new ValidationException($"CSV file not found: '{inputPath}'");
+{
+    Console.Error.WriteLine($"Error: CSV file not found: '{inputPath}'");
+    return 1;
+}
 
 IReadOnlyList<Trade> trades = CsvTradeReader.ReadTrades(inputPath);
 
-var calculator = new RealisedProfitCalculator(new PositionTrackerFactory());
-IReadOnlyList<PositionSummary> summaries = calculator.Calculate(
-    trades, 
-    PriceTrackingStrategy.Fifo);
+var calculator = new RealisedProfitCalculator(title => new AveragePricePositionTracker(title));
+IReadOnlyList<PositionSummary> summaries = calculator.Calculate(trades);
 
 ConsoleRenderer.Render(summaries);
+
+return 0;

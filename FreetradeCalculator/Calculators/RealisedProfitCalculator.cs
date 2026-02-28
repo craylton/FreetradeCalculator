@@ -1,25 +1,21 @@
-using FreetradeCalculator.Calculators.Strategies;
 using FreetradeCalculator.Domain;
 
 namespace FreetradeCalculator.Calculators;
 
-public sealed class RealisedProfitCalculator(IPositionTrackerFactory trackerFactory)
+public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrategy> strategyFactory)
 {
-    public IReadOnlyList<PositionSummary> Calculate(
-        IEnumerable<Trade> trades,
-        PriceTrackingStrategy strategy)
+    public IReadOnlyList<PositionSummary> Calculate(IEnumerable<Trade> trades)
     {
         return[.. trades
             .GroupBy(trade => trade.Title, StringComparer.Ordinal)
-            .Select(tradeGroup => CalculateForTitle(tradeGroup.Key, tradeGroup, strategy))];
+            .Select(tradeGroup => CalculateForTitle(tradeGroup.Key, tradeGroup))];
     }
 
     private PositionSummary CalculateForTitle(
         string title,
-        IEnumerable<Trade> tradesForTitle,
-        PriceTrackingStrategy strategy)
+        IEnumerable<Trade> tradesForTitle)
     {
-        IPositionTrackingStrategy positionTracker = trackerFactory.Create(strategy, title);
+        IPositionTrackingStrategy positionTracker = strategyFactory(title);
 
         foreach (Trade trade in tradesForTitle.OrderBy(t => t.Timestamp))
         {

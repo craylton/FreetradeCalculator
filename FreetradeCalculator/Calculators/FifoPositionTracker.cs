@@ -1,6 +1,6 @@
 using FreetradeCalculator.Domain;
 
-namespace FreetradeCalculator.Calculators.Strategies;
+namespace FreetradeCalculator.Calculators;
 
 public sealed class FifoPositionTracker(string title) : IPositionTrackingStrategy
 {

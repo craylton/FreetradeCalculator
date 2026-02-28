@@ -108,6 +108,40 @@ public sealed class AveragePricePositionTrackerTests
 	}
 
 	[Fact]
+	public void Process_MultipleBuysAndSellsWithDifferentSizes_CalculatesCorrectly()
+	{
+		var summary = GetSummary(
+			Buy("AAA", 10, 10m, dayOffset: 0),
+			Buy("AAA", 20, 25m, dayOffset: 1),
+			Sell("AAA", 15, 30m, dayOffset: 2),
+			Buy("AAA", 10, 15m, dayOffset: 3),
+			Sell("AAA", 20, 20m, dayOffset: 4));
+
+		Assert.Equal(40m, summary.TotalBought);
+		Assert.Equal(35m, summary.TotalSold);
+		Assert.Equal(5m, summary.RemainingQuantity);
+		Assert.Equal(850m, summary.TotalSellProceeds);
+		Assert.Equal(660m, summary.TotalCostBasisOfSoldShares); 
+		Assert.Equal(190m, summary.RealisedProfit);
+	}
+
+	[Fact]
+	public void Process_FractionalShares_CalculatesCorrectly()
+	{
+		var summary = GetSummary(
+			Buy("AAA", 1.5m, 10m, dayOffset: 0),
+			Buy("AAA", 2.5m, 20m, dayOffset: 1),
+			Sell("AAA", 3m, 25m, dayOffset: 2));
+
+		Assert.Equal(4m, summary.TotalBought);
+		Assert.Equal(3m, summary.TotalSold);
+		Assert.Equal(1m, summary.RemainingQuantity);
+		Assert.Equal(75m, summary.TotalSellProceeds);
+		Assert.Equal(48.75m, summary.TotalCostBasisOfSoldShares);
+		Assert.Equal(26.25m, summary.RealisedProfit);
+	}
+
+	[Fact]
 	public void Process_WhenSellExceedsBought_ThrowsValidationException()
 	{
 		Assert.Throws<ValidationException>(() => GetSummary(

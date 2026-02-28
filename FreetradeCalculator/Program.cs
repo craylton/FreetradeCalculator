@@ -2,26 +2,27 @@
 using FreetradeCalculator.Output;
 using FreetradeCalculator.Services;
 using FreetradeCalculator;
+using FreetradeCalculator.Domain;
 
 try
 {
-	var inputPath = args.Length > 0 ? args[0] : null;
-	if (string.IsNullOrWhiteSpace(inputPath))
-	{
-		Console.Error.WriteLine("Usage: FreetradeCalculator <path-to-trading-history.csv>");
-		Environment.ExitCode = 2;
-		return;
-	}
+    string? inputPath = args.Length > 0 ? args[0] : null;
+    if (string.IsNullOrWhiteSpace(inputPath))
+    {
+        Console.Error.WriteLine("Usage: FreetradeCalculator <path-to-trading-history.csv>");
+        Environment.ExitCode = 2;
+        return;
+    }
 
-	if (!File.Exists(inputPath))		
-		throw new ValidationException($"CSV file not found: '{inputPath}'");
+    if (!File.Exists(inputPath))
+        throw new ValidationException($"CSV file not found: '{inputPath}'");
 
-	var trades = CsvTradeReader.ReadTrades(inputPath);
-	var summaries = FifoRealisedProfitCalculator.Calculate(trades);
-	ConsoleRenderer.Render(summaries);
+    IReadOnlyList<Trade> trades = CsvTradeReader.ReadTrades(inputPath);
+    IReadOnlyList<PositionSummary> summaries = FifoRealisedProfitCalculator.Calculate(trades);
+    ConsoleRenderer.Render(summaries);
 }
 catch (ValidationException ex)
 {
-	Console.Error.WriteLine(ex.Message);
-	Environment.ExitCode = 1;
+    Console.Error.WriteLine(ex.Message);
+    Environment.ExitCode = 1;
 }

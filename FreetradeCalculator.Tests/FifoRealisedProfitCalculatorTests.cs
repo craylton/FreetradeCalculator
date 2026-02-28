@@ -190,7 +190,6 @@ public sealed class FifoRealisedProfitCalculatorTests
 		var results = FifoRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
-		Assert.Equal(first, summary.FirstTradeTimestamp);
-		Assert.Equal(last, summary.LastTradeTimestamp);
+		Assert.Equal("AAA", summary.Title);
 	}
 }

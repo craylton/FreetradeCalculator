@@ -4,77 +4,69 @@ namespace FreetradeCalculator.Services;
 
 public static class FifoRealisedProfitCalculator
 {
-	public static IReadOnlyList<PositionSummary> Calculate(IEnumerable<Trade> trades)
-	{
-		var ordered = trades
-			.OrderBy(t => t.Timestamp)
-			.ToArray();
+    public static IReadOnlyList<PositionSummary> Calculate(IEnumerable<Trade> trades) => [.. trades
+        .GroupBy(trade => trade.Title, StringComparer.Ordinal)
+        .Select(tradeGroup => CalculateForTitle(tradeGroup.Key, tradeGroup.OrderBy(t => t.Timestamp)))];
 
-		return ordered
-			.GroupBy(t => t.Title, StringComparer.Ordinal)
-			.Select(CalculateForTitle)
-			.OrderBy(s => s.Title, StringComparer.Ordinal)
-			.ToArray();
-	}
+    private static PositionSummary CalculateForTitle(string title, IEnumerable<Trade> tradesForTitle)
+    {
+        var tracker = new PositionTracker(title);
 
-	private static PositionSummary CalculateForTitle(IGrouping<string, Trade> titleTrades)
-	{
-		var lots = new LinkedList<BuyLot>();
-		decimal totalBought = 0, totalSold = 0, remaining = 0;
-		decimal realisedProfit = 0, totalSellProceeds = 0, totalCostBasis = 0;
-		DateTimeOffset? first = null, last = null;
+        foreach (Trade trade in tradesForTitle)
+        {
+            if (trade.Side == TradeSide.Buy)
+                tracker.ProcessBuy(trade);
+            else
+                tracker.ProcessSell(trade);
+        }
 
-		foreach (var trade in titleTrades)
-		{
-			first ??= trade.Timestamp;
-			last = trade.Timestamp;
+        return tracker.ToSummary();
+    }
+}
 
-			if (trade.Side == TradeSide.Buy)
-			{
-				lots.AddLast(new BuyLot(trade.Quantity, trade.PricePerShare, trade.Timestamp));
-				totalBought += trade.Quantity;
-				remaining += trade.Quantity;
-				continue;
-			}
+file sealed class PositionTracker(string title)
+{
+    private readonly Queue<BuyLot> _lots = new();
+    private decimal _totalBought;
+    private decimal _totalSold;
+    private decimal _totalSellProceeds;
+    private decimal _totalCostBasis;
 
-			var remainingToSell = trade.Quantity;
-			var sellCostBasis = 0m;
-			while (remainingToSell > 0)
-			{
-				var head = lots.First;
-				if (head is null)
-					throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o}.");
+    public void ProcessBuy(Trade trade)
+    {
+        _lots.Enqueue(new BuyLot(trade.Quantity, trade.PricePerShare));
+        _totalBought += trade.Quantity;
+    }
 
-				var lot = head.Value;
-				var consumed = Math.Min(remainingToSell, lot.QuantityRemaining);
+    public void ProcessSell(Trade trade)
+    {
+        _totalSold += trade.Quantity;
+        _totalSellProceeds += trade.Quantity * trade.PricePerShare;
 
-				sellCostBasis += consumed * lot.PricePerShare;
-				remainingToSell -= consumed;
-				remaining -= consumed;
+        decimal remainingQuantityToSell = trade.Quantity;
 
-				var lotRemaining = lot.QuantityRemaining - consumed;
-				if (lotRemaining <= 0)
-					lots.RemoveFirst();
-				else
-					head.Value = lot with { QuantityRemaining = lotRemaining };
-			}
+        while (remainingQuantityToSell > 0)
+        {
+            if (!_lots.TryPeek(out BuyLot? lot))
+                throw new ValidationException($"Oversell detected for '{title}' at {trade.Timestamp:o}.");
 
-			var sellProceeds = trade.Quantity * trade.PricePerShare;
-			totalSold += trade.Quantity;
-			totalSellProceeds += sellProceeds;
-			totalCostBasis += sellCostBasis;
-			realisedProfit += sellProceeds - sellCostBasis;
-		}
+            decimal quantityConsumed = Math.Min(remainingQuantityToSell, lot.QuantityRemaining);
 
-		return new PositionSummary(
-			titleTrades.Key,
-			totalBought,
-			totalSold,
-			remaining,
-			realisedProfit,
-			totalSellProceeds,
-			totalCostBasis,
-			first ?? default,
-			last ?? default);
-	}
+            _totalCostBasis += quantityConsumed * lot.PricePerShare;
+            remainingQuantityToSell -= quantityConsumed;
+            lot.QuantityRemaining -= quantityConsumed;
+
+            if (lot.QuantityRemaining == 0)
+                _lots.Dequeue();
+        }
+    }
+
+    public PositionSummary ToSummary() =>
+        new(title, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasis);
+
+    private sealed class BuyLot(decimal quantityRemaining, decimal pricePerShare)
+    {
+        public decimal QuantityRemaining { get; set; } = quantityRemaining;
+        public decimal PricePerShare { get; } = pricePerShare;
+    }
 }

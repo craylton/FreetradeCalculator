@@ -18,7 +18,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 	{
 		Trade[] trades = [Buy("AAA", 10, 10m, dayOffset: 0), Sell("AAA", 5, 15m, dayOffset: 1)];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
 		Assert.Equal(10m, summary.TotalBought);
@@ -39,7 +39,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 			Sell("AAA", 20, 15m, dayOffset: 2),
 		];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
 		Assert.Equal(25m, summary.TotalBought);
@@ -60,7 +60,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 			Sell("AAA", 5, 15m, dayOffset: 2),
 		];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		Assert.Equal(2, results.Count);
 
@@ -88,7 +88,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 			Sell("AAA", 8, 14m, dayOffset: 3),
 		];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
 		Assert.Equal(25m, summary.TotalBought);
@@ -104,7 +104,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 	{
 		Trade[] trades = [Buy("AAA", 1, 10m)];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
 		Assert.Equal(1m, summary.TotalBought);
@@ -123,7 +123,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 			Buy("AAA", 1, 12m, dayOffset: 2),
 		];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
 		Assert.Equal(2m, summary.TotalBought);
@@ -141,7 +141,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 			Buy("AAA", 10, 10m, dayOffset: 0),
 		];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
 		Assert.Equal(5m, summary.TotalSold);
@@ -154,7 +154,7 @@ public sealed class AverageRealisedProfitCalculatorTests
 	{
 		Trade[] trades = [Buy("AAA", 10, 15m, dayOffset: 0), Sell("AAA", 5, 10m, dayOffset: 1)];
 
-		var results = AverageRealisedProfitCalculator.Calculate(trades);
+		var results = AveragePriceRealisedProfitCalculator.Calculate(trades);
 
 		var summary = Assert.Single(results);
 		Assert.Equal(-25m, summary.RealisedProfit);
@@ -165,13 +165,13 @@ public sealed class AverageRealisedProfitCalculatorTests
 	{
 		Trade[] trades = [Buy("AAA", 5, 10m, dayOffset: 0), Sell("AAA", 10, 15m, dayOffset: 1)];
 
-		Assert.Throws<ValidationException>(() => AverageRealisedProfitCalculator.Calculate(trades));
+		Assert.Throws<ValidationException>(() => AveragePriceRealisedProfitCalculator.Calculate(trades));
 	}
 
 	[Fact]
 	public void Calculate_WhenTradeListIsEmpty_ReturnsEmptyList()
 	{
-		var results = AverageRealisedProfitCalculator.Calculate([]);
+		var results = AveragePriceRealisedProfitCalculator.Calculate([]);
 
 		Assert.Empty(results);
 	}

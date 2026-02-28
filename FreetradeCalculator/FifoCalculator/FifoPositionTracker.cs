@@ -1,8 +1,9 @@
-﻿using FreetradeCalculator.Domain;
+using FreetradeCalculator.Calculators;
+using FreetradeCalculator.Domain;
 
 namespace FreetradeCalculator.FifoCalculator;
 
-public sealed class PositionTracker(string title)
+internal sealed class FifoPositionTracker(string title) : IPositionTrackingStrategy
 {
     private readonly Queue<BuyLot> _lots = new();
     private decimal _totalBought;

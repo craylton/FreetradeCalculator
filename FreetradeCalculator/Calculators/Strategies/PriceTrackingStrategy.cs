@@ -1,4 +1,4 @@
-namespace FreetradeCalculator.Calculators;
+namespace FreetradeCalculator.Calculators.Strategies;
 
 public enum PriceTrackingStrategy
 {

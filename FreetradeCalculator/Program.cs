@@ -1,10 +1,9 @@
 ﻿using FreetradeCalculator.Output;
 using FreetradeCalculator;
 using FreetradeCalculator.Domain;
-using FreetradeCalculator.FifoCalculator;
 using FreetradeCalculator.CsvReader;
-using FreetradeCalculator.AverageCalculator;
 using FreetradeCalculator.Calculators;
+using FreetradeCalculator.Calculators.Strategies;
 
 string? inputPath = args.Length > 0 ? args[0] : null;
 if (string.IsNullOrWhiteSpace(inputPath))
@@ -18,7 +17,10 @@ if (!File.Exists(inputPath))
     throw new ValidationException($"CSV file not found: '{inputPath}'");
 
 IReadOnlyList<Trade> trades = CsvTradeReader.ReadTrades(inputPath);
-//IReadOnlyList<PositionSummary> summaries = FifoRealisedProfitCalculator.Calculate(trades);
-//IReadOnlyList<PositionSummary> summaries = AveragePriceRealisedProfitCalculator.Calculate(trades);
-IReadOnlyList<PositionSummary> summaries = RealisedProfitCalculator.Calculate(trades, PriceTrackingStrategy.AveragePrice);
+
+var calculator = new RealisedProfitCalculator(new PositionTrackerFactory());
+IReadOnlyList<PositionSummary> summaries = calculator.Calculate(
+    trades, 
+    PriceTrackingStrategy.Fifo);
+
 ConsoleRenderer.Render(summaries);

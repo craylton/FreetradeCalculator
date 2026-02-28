@@ -1,9 +1,8 @@
-using FreetradeCalculator.Calculators;
 using FreetradeCalculator.Domain;
 
-namespace FreetradeCalculator.AverageCalculator;
+namespace FreetradeCalculator.Calculators.Strategies;
 
-internal sealed class AveragePricePositionTracker(string title) : IPositionTrackingStrategy
+public sealed class AveragePricePositionTracker(string title) : IPositionTrackingStrategy
 {
 	private decimal _totalBought;
 	private decimal _totalSold;

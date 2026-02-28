@@ -1,35 +1,25 @@
-using FreetradeCalculator.AverageCalculator;
+using FreetradeCalculator.Calculators.Strategies;
 using FreetradeCalculator.Domain;
-using FreetradeCalculator.FifoCalculator;
 
 namespace FreetradeCalculator.Calculators;
 
-internal static class RealisedProfitCalculator
+public sealed class RealisedProfitCalculator(IPositionTrackerFactory trackerFactory)
 {
-    public static IReadOnlyList<PositionSummary> Calculate(
+    public IReadOnlyList<PositionSummary> Calculate(
         IEnumerable<Trade> trades,
-        PriceTrackingStrategy strategy) =>
-        strategy switch
-        {
-            PriceTrackingStrategy.Fifo => Calculate(trades, title => new FifoPositionTracker(title)),
-            PriceTrackingStrategy.AveragePrice => Calculate(trades, title => new AveragePricePositionTracker(title)),
-            _ => throw new ValidationException($"Unknown price tracking strategy '{strategy}'.")
-        };
-
-
-    public static IReadOnlyList<PositionSummary> Calculate(
-        IEnumerable<Trade> trades,
-        Func<string, IPositionTrackingStrategy> trackerFactory) =>
-        [.. trades
+        PriceTrackingStrategy strategy)
+    {
+        return[.. trades
             .GroupBy(trade => trade.Title, StringComparer.Ordinal)
-            .Select(tradeGroup => CalculateForTitle(tradeGroup.Key, tradeGroup, trackerFactory))];
+            .Select(tradeGroup => CalculateForTitle(tradeGroup.Key, tradeGroup, strategy))];
+    }
 
-    private static PositionSummary CalculateForTitle(
+    private PositionSummary CalculateForTitle(
         string title,
         IEnumerable<Trade> tradesForTitle,
-        Func<string, IPositionTrackingStrategy> trackerFactory)
+        PriceTrackingStrategy strategy)
     {
-        IPositionTrackingStrategy positionTracker = trackerFactory(title);
+        IPositionTrackingStrategy positionTracker = trackerFactory.Create(strategy, title);
 
         foreach (Trade trade in tradesForTitle.OrderBy(t => t.Timestamp))
         {

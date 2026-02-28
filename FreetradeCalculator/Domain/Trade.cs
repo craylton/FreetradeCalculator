@@ -5,5 +5,4 @@ public record Trade(
 	TradeSide Side,
 	decimal Quantity,
 	decimal PricePerShare,
-	DateTimeOffset Timestamp,
-	int SourceLineNumber);
+	DateTimeOffset Timestamp);

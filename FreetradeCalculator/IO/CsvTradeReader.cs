@@ -42,13 +42,13 @@ public static class CsvTradeReader
 		ValidateRequiredHeaders(headerIndex);
 
 		var trades = new List<Trade>();
-        for (int lineNumber = 2; reader.ReadLine() is { } line; lineNumber++)
+		while (reader.ReadLine() is { } line)
 		{
 			if (string.IsNullOrWhiteSpace(line))
 				continue;
 
             string[] fields = [.. ParseCsvLine(line)];
-            Trade? trade = ParseTrade(fields, headerIndex, lineNumber);
+            Trade? trade = ParseTrade(fields, headerIndex);
 			if (trade is not null)
 				trades.Add(trade);
 		}
@@ -56,7 +56,7 @@ public static class CsvTradeReader
 		return trades;
 	}
 
-	private static Trade? ParseTrade(string[] fields, Dictionary<string, int> headerIndex, int lineNumber)
+	private static Trade? ParseTrade(string[] fields, Dictionary<string, int> headerIndex)
 	{
         string tradeTypeText = GetField(fields, headerIndex, Headers.Type);
         if (!string.Equals(tradeTypeText, OrderType, StringComparison.OrdinalIgnoreCase))
@@ -64,33 +64,33 @@ public static class CsvTradeReader
 
         string title = GetField(fields, headerIndex, Headers.Title);
 		if (string.IsNullOrWhiteSpace(title))
-			throw new ValidationException($"Invalid ORDER row: Title is missing (line {lineNumber}).");
+			throw new ValidationException($"Invalid ORDER row: Title is missing.");
 
         string sideText = GetField(fields, headerIndex, Headers.BuySell);
-        TradeSide side = ParseSide(sideText, title, lineNumber);
+        TradeSide side = ParseSide(sideText, title);
 
         string quantityText = GetField(fields, headerIndex, Headers.Quantity);
-        decimal quantity = ParseDecimalInvariant(quantityText, title, lineNumber, Headers.Quantity);
+        decimal quantity = ParseDecimalInvariant(quantityText, title, Headers.Quantity);
 		if (quantity <= 0)
-			throw new ValidationException($"Invalid ORDER row: Quantity must be > 0 for '{title}' (line {lineNumber}).");
+			throw new ValidationException($"Invalid ORDER row: Quantity must be > 0 for '{title}'.");
 
         string priceText = GetField(fields, headerIndex, Headers.PricePerShare);
-        decimal price = ParseDecimalInvariant(priceText, title, lineNumber, Headers.PricePerShare);
+        decimal price = ParseDecimalInvariant(priceText, title, Headers.PricePerShare);
 		if (price < 0)
-			throw new ValidationException($"Invalid ORDER row: Price must be >= 0 for '{title}' (line {lineNumber}).");
+			throw new ValidationException($"Invalid ORDER row: Price must be >= 0 for '{title}'.");
 
         string timestampText = GetField(fields, headerIndex, Headers.Timestamp);
-        DateTimeOffset timestamp = ParseTimestamp(timestampText, title, lineNumber);
+        DateTimeOffset timestamp = ParseTimestamp(timestampText, title);
 
-		return new Trade(title, side, quantity, price, timestamp, lineNumber);
+		return new Trade(title, side, quantity, price, timestamp);
 	}
 
-	private static TradeSide ParseSide(string sideText, string title, int lineNumber) =>
+	private static TradeSide ParseSide(string sideText, string title) =>
 		sideText.ToUpperInvariant() switch
 		{
 			"BUY" => TradeSide.Buy,
 			"SELL" => TradeSide.Sell,
-			_ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{title}' (line {lineNumber}).")
+			_ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{title}'.")
 		};
 
 	private static string GetField(string[] fields, Dictionary<string, int> headerIndex, string header)
@@ -122,14 +122,14 @@ public static class CsvTradeReader
 			throw new ValidationException($"CSV is missing required header(s): {string.Join(", ", missing)}");
 	}
 
-	private static decimal ParseDecimalInvariant(string text, string title, int lineNumber, string fieldName)
+	private static decimal ParseDecimalInvariant(string text, string title, string fieldName)
 	{
 		if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
-			throw new ValidationException($"Invalid ORDER row: Could not parse {fieldName} for '{title}' (line {lineNumber}).");
+			throw new ValidationException($"Invalid ORDER row: Could not parse {fieldName} for '{title}'.");
 		return value;
 	}
 
-	private static DateTimeOffset ParseTimestamp(string text, string title, int lineNumber)
+	private static DateTimeOffset ParseTimestamp(string text, string title)
 	{
 		CultureInfo[] cultures = [CultureInfo.InvariantCulture, CultureInfo.CurrentCulture];
 		foreach (CultureInfo culture in cultures)
@@ -138,7 +138,7 @@ public static class CsvTradeReader
 				return dto;
 		}
 
-		throw new ValidationException($"Invalid ORDER row: Could not parse Timestamp for '{title}' (line {lineNumber}).");
+		throw new ValidationException($"Invalid ORDER row: Could not parse Timestamp for '{title}'.");
 	}
 
 	private static IEnumerable<string> ParseCsvLine(string line)

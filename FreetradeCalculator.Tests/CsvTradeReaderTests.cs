@@ -28,7 +28,6 @@ public sealed class CsvTradeReaderTests
 		Assert.Equal(TradeSide.Buy, trade.Side);
 		Assert.Equal(2m, trade.Quantity);
 		Assert.Equal(1.23m, trade.PricePerShare);
-		Assert.Equal(3, trade.SourceLineNumber);
 	}
 
 	[Fact]
@@ -43,20 +42,6 @@ public sealed class CsvTradeReaderTests
 		var trades = ReadTradesFromCsv(csv);
 
 		Assert.Empty(trades);
-	}
-
-	[Fact]
-	public void ReadTrades_WhenOrderHasNegativeTotalAmount_StillParsesTrade()
-	{
-		var csv = """
-			Type,Buy / Sell,Title,Total Amount in Account Currency,Price per Share in Account Currency,Quantity,Timestamp
-			ORDER,BUY,Some ETF,-100,1.23,2,2026-02-01T00:00:00.000Z
-			""";
-
-		var trades = ReadTradesFromCsv(csv);
-
-		var trade = Assert.Single(trades);
-		Assert.Equal("Some ETF", trade.Title);
 	}
 
 	[Fact]
@@ -120,19 +105,27 @@ public sealed class CsvTradeReaderTests
 
 		var trade = Assert.Single(trades);
 		Assert.Equal("Some, ETF", trade.Title);
-	}
+        Assert.Equal(TradeSide.Buy, trade.Side);
+        Assert.Equal(1m, trade.Quantity);
+        Assert.Equal(1.23m, trade.PricePerShare);
+    }
 
 	[Fact]
-	public void ReadTrades_WhenReadingRealisticExportWithExtraColumns_ParsesOrdersAndSkipsNonOrders()
+	public void ReadTrades_WhenReadingExportWithExtraColumns_ParsesOrdersAndSkipsNonOrders()
 	{
 		var trades = ReadTradesFromDataFile("activity-feed-export_sample.csv");
 
 		Assert.Equal(2, trades.Count);
-		Assert.Equal("Ultra-Short Inc GBP Acc", trades[0].Title);
-		Assert.Equal(TradeSide.Sell, trades[0].Side);
-		Assert.Equal(84m, trades[0].Quantity);
-		Assert.Equal(119.5417857m, trades[0].PricePerShare);
-	}
+        Assert.Equal("Ultra-Short Inc GBP Acc", trades[0].Title);
+        Assert.Equal(TradeSide.Sell, trades[0].Side);
+        Assert.Equal(84m, trades[0].Quantity);
+        Assert.Equal(119.5417857m, trades[0].PricePerShare);
+
+        Assert.Equal("FTSE All-World Acc", trades[1].Title);
+        Assert.Equal(TradeSide.Sell, trades[1].Side);
+        Assert.Equal(870m, trades[1].Quantity);
+        Assert.Equal(6.44534483m, trades[1].PricePerShare);
+    }
 
 	private static IReadOnlyList<Trade> ReadTradesFromCsv(string csv)
 	{

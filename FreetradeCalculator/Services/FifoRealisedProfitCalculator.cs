@@ -8,7 +8,6 @@ public static class FifoRealisedProfitCalculator
 	{
 		var ordered = trades
 			.OrderBy(t => t.Timestamp)
-			.ThenBy(t => t.SourceLineNumber)
 			.ToArray();
 
 		return ordered
@@ -44,7 +43,7 @@ public static class FifoRealisedProfitCalculator
 			{
 				var head = lots.First;
 				if (head is null)
-					throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o} (line {trade.SourceLineNumber}).");
+					throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o}.");
 
 				var lot = head.Value;
 				var consumed = Math.Min(remainingToSell, lot.QuantityRemaining);

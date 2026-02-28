@@ -19,6 +19,11 @@ public static class CsvTradeReader
 	public static IReadOnlyList<Trade> ReadTrades(string path)
 	{
 		using var reader = new StreamReader(path);
+		return ReadTrades(reader);
+	}
+
+	public static IReadOnlyList<Trade> ReadTrades(TextReader reader)
+	{
 		var headerLine = reader.ReadLine();
 		if (headerLine is null)
 			throw new ValidationException("CSV appears to be empty.");

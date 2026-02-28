@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="FreetradeCalculator.Tests/FreetradeCalculator.Tests.csproj" Id="3ddf63ed-209f-4802-ad15-0a913a56fa9c" />
   <Project Path="FreetradeCalculator/FreetradeCalculator.csproj" />
 </Solution>

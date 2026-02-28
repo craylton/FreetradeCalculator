@@ -1,0 +1,5 @@
+Title,Type,Timestamp,Account Currency,Total Amount in Account Currency,Buy / Sell,Ticker,ISIN,Price per Share in Account Currency,Stamp Duty,Quantity,Venue,Order ID,Order Type,Instrument Currency,Total Amount in Instrument Currency,Price per Share,FX Rate,Base FX Rate,FX Fee (BPS),FX Fee Amount
+Ultra-Short Inc GBP Acc,ORDER,2026-02-25T08:02:20.793Z,GBP,10041.51,SELL,JGSA,IE00BG47J908,119.5417857,0,84,London Stock Exchange,BZFFM3FL2PSO,LIMIT,GBP,10041.51,119.5417857,,,0,
+Interest,INTEREST_FROM_CASH,2026-02-16T00:00:00.000Z,GBP,0.11,,,,,,,,,,,,,,,
+January Statement,MONTHLY_STATEMENT,2026-02-01T00:00:00.000Z,,,,,,,,,,,,,,,
+FTSE All-World Acc,ORDER,2026-02-25T08:00:19.135Z,GBP,5607.45,SELL,FWRG,IE000716YHJ7,6.44534483,0,870,London Stock Exchange,W1AEEVF2CU0L,LIMIT,GBP,5607.45,6.44534483,,,0,

@@ -1,5 +1,5 @@
 using FreetradeCalculator.Domain;
-using FreetradeCalculator.Services;
+using FreetradeCalculator.FifoCalculator;
 
 namespace FreetradeCalculator.Tests;
 

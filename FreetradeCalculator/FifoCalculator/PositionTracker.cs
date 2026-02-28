@@ -1,30 +1,8 @@
-using FreetradeCalculator.Domain;
+﻿using FreetradeCalculator.Domain;
 
-namespace FreetradeCalculator.Services;
+namespace FreetradeCalculator.FifoCalculator;
 
-public static class FifoRealisedProfitCalculator
-{
-    public static IReadOnlyList<PositionSummary> Calculate(IEnumerable<Trade> trades) => [.. trades
-        .GroupBy(trade => trade.Title, StringComparer.Ordinal)
-        .Select(tradeGroup => CalculateForTitle(tradeGroup.Key, tradeGroup.OrderBy(t => t.Timestamp)))];
-
-    private static PositionSummary CalculateForTitle(string title, IEnumerable<Trade> tradesForTitle)
-    {
-        var tracker = new PositionTracker(title);
-
-        foreach (Trade trade in tradesForTitle)
-        {
-            if (trade.Side == TradeSide.Buy)
-                tracker.ProcessBuy(trade);
-            else
-                tracker.ProcessSell(trade);
-        }
-
-        return tracker.ToSummary();
-    }
-}
-
-file sealed class PositionTracker(string title)
+public sealed class PositionTracker(string title)
 {
     private readonly Queue<BuyLot> _lots = new();
     private decimal _totalBought;

@@ -1,8 +1,8 @@
 ﻿using FreetradeCalculator.IO;
 using FreetradeCalculator.Output;
-using FreetradeCalculator.Services;
 using FreetradeCalculator;
 using FreetradeCalculator.Domain;
+using FreetradeCalculator.FifoCalculator;
 
 try
 {

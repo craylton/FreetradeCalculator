@@ -1,5 +1,5 @@
+using FreetradeCalculator.CsvReader;
 using FreetradeCalculator.Domain;
-using FreetradeCalculator.IO;
 
 namespace FreetradeCalculator.Tests;
 

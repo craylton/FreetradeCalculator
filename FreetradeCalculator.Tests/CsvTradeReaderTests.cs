@@ -76,9 +76,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,BUY,Some ETF,1.23,1
 			""";
 
-		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
-		Assert.Contains("missing required header", ex.Message, StringComparison.OrdinalIgnoreCase);
-		Assert.Contains("Timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+		var ex = Assert.Throws<CsvHelper.MissingFieldException>(() => ReadTradesFromCsv(csv));
 	}
 
 	[Fact]

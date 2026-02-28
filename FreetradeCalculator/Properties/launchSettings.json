@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FreetradeCalculator": {
+      "commandName": "Project",
+      "commandLineArgs": "D:\\Documents\\Simon\\Code\\FreetradeCalculator\\FreetradeCalculator\\activity-feed-export_c0cdcb43-d419-4e55-ac2b-53be45ac2e21.csv"
+    }
+  }
+}

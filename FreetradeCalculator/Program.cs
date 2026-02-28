@@ -3,6 +3,7 @@ using FreetradeCalculator;
 using FreetradeCalculator.Domain;
 using FreetradeCalculator.FifoCalculator;
 using FreetradeCalculator.CsvReader;
+using FreetradeCalculator.AverageCalculator;
 
 try
 {
@@ -18,7 +19,8 @@ try
         throw new ValidationException($"CSV file not found: '{inputPath}'");
 
     IReadOnlyList<Trade> trades = CsvTradeReader.ReadTrades(inputPath);
-    IReadOnlyList<PositionSummary> summaries = FifoRealisedProfitCalculator.Calculate(trades);
+    //IReadOnlyList<PositionSummary> summaries = FifoRealisedProfitCalculator.Calculate(trades);
+    IReadOnlyList<PositionSummary> summaries = AverageRealisedProfitCalculator.Calculate(trades);
     ConsoleRenderer.Render(summaries);
 }
 catch (ValidationException ex)

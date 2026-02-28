@@ -57,6 +57,16 @@ public static class ConsoleRenderer
             IEnumerable<string> cells = columns.Select(column => column.FormatCell(i));
             Console.WriteLine(string.Join(" | ", cells));
         }
+
+        decimal totalRealisedProfit = summaries.Sum(summary => summary.RealisedProfit);
+        decimal totalSellProceeds = summaries.Sum(summary => summary.TotalSellProceeds);
+        decimal totalCostBasis = summaries.Sum(summary => summary.TotalCostBasisOfSoldShares);
+
+        Console.WriteLine();
+        Console.WriteLine("Totals");
+        Console.WriteLine($"  Realised P&L : {FormatMoney(totalRealisedProfit)}");
+        Console.WriteLine($"  Sell Proceeds: {FormatMoney(totalSellProceeds)}");
+        Console.WriteLine($"  Cost Basis   : {FormatMoney(totalCostBasis)}");
     }
 
     private static string FormatQuantity(decimal value) => value.ToString("0.########", CultureInfo.InvariantCulture);

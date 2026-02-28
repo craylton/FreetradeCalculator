@@ -1,4 +1,4 @@
-using FreetradeCalculator.Calculators.Strategies;
+using FreetradeCalculator.Calculators;
 using FreetradeCalculator.Domain;
 
 namespace FreetradeCalculator.Tests;

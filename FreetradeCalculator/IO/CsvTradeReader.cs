@@ -6,14 +6,26 @@ namespace FreetradeCalculator.IO;
 
 public static class CsvTradeReader
 {
+	private const string OrderType = "ORDER";
+
+	private static class Headers
+	{
+		public const string Type = "Type";
+		public const string BuySell = "Buy / Sell";
+		public const string Title = "Title";
+		public const string PricePerShare = "Price per Share in Account Currency";
+		public const string Quantity = "Quantity";
+		public const string Timestamp = "Timestamp";
+	}
+
 	private static readonly string[] RequiredHeaders =
 	[
-		"Type",
-		"Buy / Sell",
-		"Title",
-		"Price per Share in Account Currency",
-		"Quantity",
-		"Timestamp",
+		Headers.Type,
+		Headers.BuySell,
+		Headers.Title,
+		Headers.PricePerShare,
+		Headers.Quantity,
+		Headers.Timestamp,
 	];
 
 	public static IReadOnlyList<Trade> ReadTrades(string path)
@@ -24,95 +36,107 @@ public static class CsvTradeReader
 
 	public static IReadOnlyList<Trade> ReadTrades(TextReader reader)
 	{
-		var headerLine = reader.ReadLine();
-		if (headerLine is null)
-			throw new ValidationException("CSV appears to be empty.");
-
-		var headers = ParseCsvLine(headerLine).ToArray();
-		var headerIndex = BuildHeaderIndex(headers);
+        string headerLine = reader.ReadLine() ?? throw new ValidationException("CSV appears to be empty.");
+        string[] headers = [.. ParseCsvLine(headerLine)];
+        Dictionary<string, int> headerIndex = BuildHeaderIndex(headers);
 		ValidateRequiredHeaders(headerIndex);
 
 		var trades = new List<Trade>();
-		var lineNumber = 1;
-		while (reader.ReadLine() is { } line)
+        for (int lineNumber = 2; reader.ReadLine() is { } line; lineNumber++)
 		{
-			lineNumber++;
 			if (string.IsNullOrWhiteSpace(line))
 				continue;
 
-			var fields = ParseCsvLine(line).ToArray();
-			string Get(string header)
-			{
-				var idx = headerIndex[header];
-				return idx < fields.Length ? fields[idx] : "";
-			}
-
-			if (!string.Equals(Get("Type"), "ORDER", StringComparison.OrdinalIgnoreCase))
-				continue;
-
-			var title = Get("Title").Trim();
-			if (string.IsNullOrWhiteSpace(title))
-				throw new ValidationException($"Invalid ORDER row: Title is missing (line {lineNumber}).");
-
-			var sideText = Get("Buy / Sell").Trim();
-			var side = sideText.ToUpperInvariant() switch
-			{
-				"BUY" => TradeSide.Buy,
-				"SELL" => TradeSide.Sell,
-				_ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{title}' (line {lineNumber}).")
-			};
-
-			var quantity = ParseDecimalInvariant(Get("Quantity"), title, lineNumber, "Quantity");
-			if (quantity <= 0)
-				throw new ValidationException($"Invalid ORDER row: Quantity must be > 0 for '{title}' (line {lineNumber}).");
-
-			var price = ParseDecimalInvariant(Get("Price per Share in Account Currency"), title, lineNumber, "Price per Share in Account Currency");
-			if (price < 0)
-				throw new ValidationException($"Invalid ORDER row: Price must be >= 0 for '{title}' (line {lineNumber}).");
-
-			var timestamp = ParseTimestamp(Get("Timestamp"), title, lineNumber);
-
-			trades.Add(new Trade(title, side, quantity, price, timestamp, lineNumber));
+            string[] fields = [.. ParseCsvLine(line)];
+            Trade? trade = ParseTrade(fields, headerIndex, lineNumber);
+			if (trade is not null)
+				trades.Add(trade);
 		}
 
 		return trades;
 	}
 
+	private static Trade? ParseTrade(string[] fields, Dictionary<string, int> headerIndex, int lineNumber)
+	{
+        string tradeTypeText = GetField(fields, headerIndex, Headers.Type);
+        if (!string.Equals(tradeTypeText, OrderType, StringComparison.OrdinalIgnoreCase))
+			return null;
+
+        string title = GetField(fields, headerIndex, Headers.Title);
+		if (string.IsNullOrWhiteSpace(title))
+			throw new ValidationException($"Invalid ORDER row: Title is missing (line {lineNumber}).");
+
+        string sideText = GetField(fields, headerIndex, Headers.BuySell);
+        TradeSide side = ParseSide(sideText, title, lineNumber);
+
+        string quantityText = GetField(fields, headerIndex, Headers.Quantity);
+        decimal quantity = ParseDecimalInvariant(quantityText, title, lineNumber, Headers.Quantity);
+		if (quantity <= 0)
+			throw new ValidationException($"Invalid ORDER row: Quantity must be > 0 for '{title}' (line {lineNumber}).");
+
+        string priceText = GetField(fields, headerIndex, Headers.PricePerShare);
+        decimal price = ParseDecimalInvariant(priceText, title, lineNumber, Headers.PricePerShare);
+		if (price < 0)
+			throw new ValidationException($"Invalid ORDER row: Price must be >= 0 for '{title}' (line {lineNumber}).");
+
+        string timestampText = GetField(fields, headerIndex, Headers.Timestamp);
+        DateTimeOffset timestamp = ParseTimestamp(timestampText, title, lineNumber);
+
+		return new Trade(title, side, quantity, price, timestamp, lineNumber);
+	}
+
+	private static TradeSide ParseSide(string sideText, string title, int lineNumber) =>
+		sideText.ToUpperInvariant() switch
+		{
+			"BUY" => TradeSide.Buy,
+			"SELL" => TradeSide.Sell,
+			_ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{title}' (line {lineNumber}).")
+		};
+
+	private static string GetField(string[] fields, Dictionary<string, int> headerIndex, string header)
+	{
+        int index = headerIndex[header];
+		return index < fields.Length ? fields[index].Trim() : string.Empty;
+	}
+
 	private static Dictionary<string, int> BuildHeaderIndex(string[] headers)
 	{
-		var dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-		for (var i = 0; i < headers.Length; i++)
+		var headerIndices = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+		for (int i = 0; i < headers.Length; i++)
 		{
-			var name = headers[i].Trim();
+            string name = headers[i].Trim();
 			if (name.Length == 0)
 				continue;
-			if (!dict.ContainsKey(name))
-				dict.Add(name, i);
+
+			headerIndices.TryAdd(name, i);
 		}
-		return dict;
+
+		return headerIndices;
 	}
 
 	private static void ValidateRequiredHeaders(Dictionary<string, int> headerIndex)
 	{
-		var missing = RequiredHeaders.Where(h => !headerIndex.ContainsKey(h)).ToArray();
+        string[] missing = [.. RequiredHeaders.Where(header => !headerIndex.ContainsKey(header))];
 		if (missing.Length > 0)
 			throw new ValidationException($"CSV is missing required header(s): {string.Join(", ", missing)}");
 	}
 
-	private static decimal ParseDecimalInvariant(string text, string title, int lineNumber, string field)
+	private static decimal ParseDecimalInvariant(string text, string title, int lineNumber, string fieldName)
 	{
-		if (!decimal.TryParse(text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
-			throw new ValidationException($"Invalid ORDER row: Could not parse {field} for '{title}' (line {lineNumber}).");
+		if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
+			throw new ValidationException($"Invalid ORDER row: Could not parse {fieldName} for '{title}' (line {lineNumber}).");
 		return value;
 	}
 
 	private static DateTimeOffset ParseTimestamp(string text, string title, int lineNumber)
 	{
-		if (DateTimeOffset.TryParse(text.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var dto))
-			return dto;
-
-		if (DateTimeOffset.TryParse(text.Trim(), CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out dto))
-			return dto;
+		CultureInfo[] cultures = [CultureInfo.InvariantCulture, CultureInfo.CurrentCulture];
+		foreach (CultureInfo culture in cultures)
+		{
+			if (DateTimeOffset.TryParse(text, culture, DateTimeStyles.AllowWhiteSpaces, out var dto))
+				return dto;
+		}
 
 		throw new ValidationException($"Invalid ORDER row: Could not parse Timestamp for '{title}' (line {lineNumber}).");
 	}
@@ -122,14 +146,14 @@ public static class CsvTradeReader
 		var sb = new StringBuilder();
 		var inQuotes = false;
 
-		for (var i = 0; i < line.Length; i++)
+		for (int i = 0; i < line.Length; i++)
 		{
-			var c = line[i];
+            char c = line[i];
 			if (c == '"')
 			{
 				if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
 				{
-					_ = sb.Append('"');
+					sb.Append('"');
 					i++;
 					continue;
 				}
@@ -141,11 +165,11 @@ public static class CsvTradeReader
 			if (c == ',' && !inQuotes)
 			{
 				yield return sb.ToString();
-				_ = sb.Clear();
+				sb.Clear();
 				continue;
 			}
 
-			_ = sb.Append(c);
+			sb.Append(c);
 		}
 
 		yield return sb.ToString();

@@ -12,6 +12,7 @@ When writing or reviewing code, consider the following:
 - Could any surplus functionality be removed?
 - Are variables, methods, and classes named clearly and descriptively?
 - Are there any modern C# or .NET features that could be used to improve the code?
+- Is the code's intent clear and explicit?
 - Is the code consistent with the rest of the codebase?
 - Are there any code smells present?
 - Does the code follow general best practices?

@@ -16,15 +16,16 @@ public sealed class CsvTradeReaderTests
 	public void ReadTrades_WhenCsvContainsWhitespaceRow_IgnoresIt()
 	{
 		var csv = """
-			Type,Buy / Sell,Title,Price per Share in Account Currency,Quantity,Timestamp
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp
 			   
-			ORDER,BUY,Some ETF,1.23,2,2026-02-01T00:00:00.000Z
+			ORDER,BUY,Some ETF,IE00TEST0001,1.23,2,2026-02-01T00:00:00.000Z
 			""";
 
 		var trades = ReadTradesFromCsv(csv);
 
 		var trade = Assert.Single(trades);
 		Assert.Equal("Some ETF", trade.Title);
+		Assert.Equal("IE00TEST0001", trade.Isin);
 		Assert.Equal(TradeSide.Buy, trade.Side);
 		Assert.Equal(2m, trade.Quantity);
 		Assert.Equal(1.23m, trade.PricePerShare);
@@ -34,9 +35,9 @@ public sealed class CsvTradeReaderTests
 	public void ReadTrades_WhenCsvContainsNoOrders_ReturnsEmptyList()
 	{
 		var csv = """
-			Type,Buy / Sell,Title,Price per Share in Account Currency,Quantity,Timestamp
-			TOP_UP,,,,,2026-02-01T00:00:00.000Z
-			INTEREST_FROM_CASH,,,,,2026-02-01T00:00:00.000Z
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp
+			TOP_UP,,,,,,2026-02-01T00:00:00.000Z
+			INTEREST_FROM_CASH,,,,,,2026-02-01T00:00:00.000Z
 			""";
 
 		var trades = ReadTradesFromCsv(csv);
@@ -48,8 +49,8 @@ public sealed class CsvTradeReaderTests
 	public void ReadTrades_WhenOrderQuantityIsNegative_ThrowsValidationException()
 	{
 		var csv = """
-			Type,Buy / Sell,Title,Price per Share in Account Currency,Quantity,Timestamp
-			ORDER,BUY,Some ETF,1.23,-1,2026-02-01T00:00:00.000Z
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp
+			ORDER,BUY,Some ETF,IE00TEST0001,1.23,-1,2026-02-01T00:00:00.000Z
 			""";
 
 		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
@@ -60,8 +61,8 @@ public sealed class CsvTradeReaderTests
 	public void ReadTrades_WhenOrderPriceIsNegative_ThrowsValidationException()
 	{
 		var csv = """
-			Type,Buy / Sell,Title,Price per Share in Account Currency,Quantity,Timestamp
-			ORDER,BUY,Some ETF,-0.01,1,2026-02-01T00:00:00.000Z
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp
+			ORDER,BUY,Some ETF,IE00TEST0001,-0.01,1,2026-02-01T00:00:00.000Z
 			""";
 
 		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
@@ -72,8 +73,8 @@ public sealed class CsvTradeReaderTests
 	public void ReadTrades_WhenCsvIsMissingHeaders_ThrowsValidationException()
 	{
 		var csv = """
-			Type,Buy / Sell,Title,Price per Share in Account Currency,Quantity
-			ORDER,BUY,Some ETF,1.23,1
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity
+			ORDER,BUY,Some ETF,IE00TEST0001,1.23,1
 			""";
 
 		var ex = Assert.Throws<CsvHelper.MissingFieldException>(() => ReadTradesFromCsv(csv));
@@ -83,8 +84,8 @@ public sealed class CsvTradeReaderTests
 	public void ReadTrades_WhenBuySellIsInvalid_ThrowsValidationException()
 	{
 		var csv = """
-			Type,Buy / Sell,Title,Price per Share in Account Currency,Quantity,Timestamp
-			ORDER,HOLD,Some ETF,1.23,1,2026-02-01T00:00:00.000Z
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp
+			ORDER,HOLD,Some ETF,IE00TEST0001,1.23,1,2026-02-01T00:00:00.000Z
 			""";
 
 		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
@@ -95,18 +96,31 @@ public sealed class CsvTradeReaderTests
 	public void ReadTrades_WhenTitleContainsComma_ParsesQuotedCsvCorrectly()
 	{
 		var csv = """
-			Type,Buy / Sell,Title,Price per Share in Account Currency,Quantity,Timestamp
-			ORDER,BUY,"Some, ETF",1.23,1,2026-02-01T00:00:00.000Z
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp
+			ORDER,BUY,"Some, ETF",IE00TEST0001,1.23,1,2026-02-01T00:00:00.000Z
 			""";
 
 		var trades = ReadTradesFromCsv(csv);
 
 		var trade = Assert.Single(trades);
 		Assert.Equal("Some, ETF", trade.Title);
+		Assert.Equal("IE00TEST0001", trade.Isin);
         Assert.Equal(TradeSide.Buy, trade.Side);
         Assert.Equal(1m, trade.Quantity);
         Assert.Equal(1.23m, trade.PricePerShare);
     }
+
+	[Fact]
+	public void ReadTrades_WhenOrderIsMissingIsin_ThrowsValidationException()
+	{
+		var csv = """
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp
+			ORDER,BUY,Some ETF,,1.23,1,2026-02-01T00:00:00.000Z
+			""";
+
+		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
+		Assert.Contains("ISIN is missing", ex.Message, StringComparison.OrdinalIgnoreCase);
+	}
 
 	[Fact]
 	public void ReadTrades_WhenReadingExportWithExtraColumns_ParsesOrdersAndSkipsNonOrders()
@@ -115,11 +129,13 @@ public sealed class CsvTradeReaderTests
 
 		Assert.Equal(2, trades.Count);
         Assert.Equal("Ultra-Short Inc GBP Acc", trades[0].Title);
+		Assert.Equal("IE00BG47J908", trades[0].Isin);
         Assert.Equal(TradeSide.Sell, trades[0].Side);
         Assert.Equal(84m, trades[0].Quantity);
         Assert.Equal(119.5417857m, trades[0].PricePerShare);
 
         Assert.Equal("FTSE All-World Acc", trades[1].Title);
+		Assert.Equal("IE000716YHJ7", trades[1].Isin);
         Assert.Equal(TradeSide.Sell, trades[1].Side);
         Assert.Equal(870m, trades[1].Quantity);
         Assert.Equal(6.44534483m, trades[1].PricePerShare);

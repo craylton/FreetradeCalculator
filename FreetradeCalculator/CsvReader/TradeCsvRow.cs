@@ -13,6 +13,9 @@ internal class TradeCsvRow
     [Name("Title")] 
     public string? Title { get; set; }
 
+    [Name("ISIN")]
+    public string? Isin { get; set; }
+
     [Name("Price per Share in Account Currency")] 
     public decimal? PricePerShare { get; set; }
 

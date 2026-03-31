@@ -6,12 +6,13 @@ namespace FreetradeCalculator.Tests;
 public sealed class AveragePricePositionTrackerTests
 {
 	private static readonly DateTimeOffset BaseTime = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+	private static string IsinFor(string title) => $"ISIN-{title}";
 
 	private static Trade Buy(string title, decimal qty, decimal price, int dayOffset = 0) =>
-		new(title, TradeSide.Buy, qty, price, BaseTime.AddDays(dayOffset));
+		new(IsinFor(title), title, TradeSide.Buy, qty, price, BaseTime.AddDays(dayOffset));
 
 	private static Trade Sell(string title, decimal qty, decimal price, int dayOffset = 0) =>
-		new(title, TradeSide.Sell, qty, price, BaseTime.AddDays(dayOffset));
+		new(IsinFor(title), title, TradeSide.Sell, qty, price, BaseTime.AddDays(dayOffset));
 
     private static PositionSummary GetSummary(params Trade[] trades)
     {

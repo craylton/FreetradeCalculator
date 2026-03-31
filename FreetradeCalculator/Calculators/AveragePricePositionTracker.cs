@@ -4,6 +4,7 @@ namespace FreetradeCalculator.Calculators;
 
 public sealed class AveragePricePositionTracker(string title) : IPositionTrackingStrategy
 {
+	private string _title = title;
 	private decimal _totalBought;
 	private decimal _totalSold;
 	private decimal _totalSellProceeds;
@@ -14,6 +15,7 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 
 	public void ProcessBuy(Trade trade)
 	{
+		_title = trade.Title;
 		_totalBought += trade.Quantity;
 		_holdingQuantity += trade.Quantity;
 		_holdingCost += trade.Quantity * trade.PricePerShare;
@@ -21,8 +23,9 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 
 	public void ProcessSell(Trade trade)
 	{
+		_title = trade.Title;
 		if (_holdingQuantity < trade.Quantity)
-			throw new ValidationException($"Oversell detected for '{title}' at {trade.Timestamp:o}.");
+			throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o}.");
 
 		_totalSold += trade.Quantity;
 		_totalSellProceeds += trade.Quantity * trade.PricePerShare;
@@ -37,5 +40,5 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 	}
 
 	public PositionSummary ToSummary() =>
-		new(title, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasisOfSoldShares);
+		new(_title, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasisOfSoldShares);
 }

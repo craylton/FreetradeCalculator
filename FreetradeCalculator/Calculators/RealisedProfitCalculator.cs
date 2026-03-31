@@ -7,17 +7,16 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
     public IReadOnlyList<PositionSummary> Calculate(IEnumerable<Trade> trades)
     {
         return[.. trades
-            .GroupBy(trade => trade.Title, StringComparer.Ordinal)
-            .Select(tradeGroup => CalculateForTitle(tradeGroup.Key, tradeGroup))];
+            .GroupBy(trade => trade.Isin, StringComparer.Ordinal)
+            .Select(CalculateForInstrument)];
     }
 
-    private PositionSummary CalculateForTitle(
-        string title,
-        IEnumerable<Trade> tradesForTitle)
+    private PositionSummary CalculateForInstrument(IGrouping<string, Trade> tradesForInstrument)
     {
-        IPositionTrackingStrategy positionTracker = strategyFactory(title);
+		Trade[] orderedTrades = [.. tradesForInstrument.OrderBy(t => t.Timestamp)];
+		IPositionTrackingStrategy positionTracker = strategyFactory(orderedTrades[0].Title);
 
-        foreach (Trade trade in tradesForTitle.OrderBy(t => t.Timestamp))
+		foreach (Trade trade in orderedTrades)
         {
             switch (trade.Side)
             {
@@ -30,7 +29,7 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
                     break;
 
                 default:
-                    throw new ValidationException($"Unknown trade side '{trade.Side}' for '{title}' at {trade.Timestamp:o}.");
+					throw new ValidationException($"Unknown trade side '{trade.Side}' for '{trade.Title}' at {trade.Timestamp:o}.");
             }
         }
 

@@ -4,6 +4,7 @@ namespace FreetradeCalculator.Calculators;
 
 public sealed class FifoPositionTracker(string title) : IPositionTrackingStrategy
 {
+	private string _title = title;
     private readonly Queue<BuyLot> _lots = new();
     private decimal _totalBought;
     private decimal _totalSold;
@@ -12,12 +13,14 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
 
     public void ProcessBuy(Trade trade)
     {
+		_title = trade.Title;
         _lots.Enqueue(new BuyLot(trade.Quantity, trade.PricePerShare));
         _totalBought += trade.Quantity;
     }
 
     public void ProcessSell(Trade trade)
     {
+		_title = trade.Title;
         _totalSold += trade.Quantity;
         _totalSellProceeds += trade.Quantity * trade.PricePerShare;
 
@@ -26,7 +29,7 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
         while (remainingQuantityToSell > 0)
         {
             if (!_lots.TryPeek(out BuyLot? lot))
-                throw new ValidationException($"Oversell detected for '{title}' at {trade.Timestamp:o}.");
+				throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o}.");
 
             decimal quantityConsumed = Math.Min(remainingQuantityToSell, lot.QuantityRemaining);
 
@@ -40,7 +43,7 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
     }
 
     public PositionSummary ToSummary() =>
-        new(title, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasis);
+		new(_title, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasis);
 
     private sealed class BuyLot(decimal quantityRemaining, decimal pricePerShare)
     {

@@ -36,27 +36,32 @@ public static class CsvTradeReader
 
     private static Trade ParseOrderRow(TradeCsvRow row)
     {
-        if (string.IsNullOrWhiteSpace(row.Title))
-            throw new ValidationException("Invalid ORDER row: Title is missing.");
+		if (string.IsNullOrWhiteSpace(row.Isin))
+			throw new ValidationException("Invalid ORDER row: ISIN is missing.");
+
+		string displayTitle = string.IsNullOrWhiteSpace(row.Title)
+			? row.Isin
+			: row.Title;
 
         if (row.Quantity is not > 0)
-            throw new ValidationException($"Invalid ORDER row: Quantity must be > 0 for '{row.Title}'.");
+			throw new ValidationException($"Invalid ORDER row: Quantity must be > 0 for '{displayTitle}'.");
 
         if (row.PricePerShare is not >= 0)
-            throw new ValidationException($"Invalid ORDER row: Price must be >= 0 for '{row.Title}'.");
+			throw new ValidationException($"Invalid ORDER row: Price must be >= 0 for '{displayTitle}'.");
 
         if (row.Timestamp is null)
-            throw new ValidationException($"Invalid ORDER row: Could not parse Timestamp for '{row.Title}'.");
+			throw new ValidationException($"Invalid ORDER row: Could not parse Timestamp for '{displayTitle}'.");
 
         var side = row.BuySell?.ToUpperInvariant() switch
         {
             "BUY" => TradeSide.Buy,
             "SELL" => TradeSide.Sell,
-            _ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{row.Title}'.")
+			_ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{displayTitle}'.")
         };
 
         return new Trade(
-            row.Title,
+			row.Isin,
+			displayTitle,
             side,
             row.Quantity.Value,
             row.PricePerShare.Value,

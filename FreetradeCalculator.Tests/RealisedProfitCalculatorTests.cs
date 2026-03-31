@@ -7,12 +7,13 @@ namespace FreetradeCalculator.Tests;
 public sealed class RealisedProfitCalculatorTests
 {
 	private static readonly DateTimeOffset BaseTime = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+	private static string IsinFor(string title) => $"ISIN-{title}";
 
-	private static Trade Buy(string title, int dayOffset = 0) =>
-		new(title, TradeSide.Buy, 1, 1m, BaseTime.AddDays(dayOffset));
+	private static Trade Buy(string title, string? isin = null, int dayOffset = 0) =>
+		new(isin ?? IsinFor(title), title, TradeSide.Buy, 1, 1m, BaseTime.AddDays(dayOffset));
 
-	private static Trade Sell(string title, int dayOffset = 0) =>
-		new(title, TradeSide.Sell, 1, 1m, BaseTime.AddDays(dayOffset));
+	private static Trade Sell(string title, string? isin = null, int dayOffset = 0) =>
+		new(isin ?? IsinFor(title), title, TradeSide.Sell, 1, 1m, BaseTime.AddDays(dayOffset));
 
 	[Fact]
 	public void Calculate_WhenTwoTitles_CalculatesEachSeparately()
@@ -76,9 +77,28 @@ public sealed class RealisedProfitCalculatorTests
 	}
 
 	[Fact]
+	public void Calculate_WhenTitleChangesButIsinMatches_TracksSingleInvestment()
+	{
+		Trade[] trades =
+		[
+			Buy("Asset A", isin: "IE00TEST1234", dayOffset: 0),
+			Sell("Asset B", isin: "IE00TEST1234", dayOffset: 1)
+		];
+
+		var calculator = new RealisedProfitCalculator(title => new AveragePricePositionTracker(title));
+
+		var results = calculator.Calculate(trades);
+
+		var summary = Assert.Single(results);
+		Assert.Equal("Asset B", summary.Title);
+		Assert.Equal(1m, summary.TotalBought);
+		Assert.Equal(1m, summary.TotalSold);
+	}
+
+	[Fact]
 	public void Calculate_WhenTradeSideIsUnknown_ThrowsValidationException()
 	{
-		Trade[] trades = [ new Trade("UNKNOWN", (TradeSide)999, 1, 1m, BaseTime) ];
+		Trade[] trades = [ new Trade("ISIN-UNKNOWN", "UNKNOWN", (TradeSide)999, 1, 1m, BaseTime) ];
 		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
 
 		var exception = Assert.Throws<ValidationException>(() => calculator.Calculate(trades));

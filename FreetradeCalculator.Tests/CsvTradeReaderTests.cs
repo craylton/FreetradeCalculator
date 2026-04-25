@@ -8,7 +8,7 @@ public sealed class CsvTradeReaderTests
 	[Fact]
 	public void ReadTrades_WhenCsvIsEmpty_ThrowsValidationException()
 	{
-		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(""));
+		var ex = Assert.Throws<ValidationException>(() => ReadTradeDataFromCsv("").Trades);
 		Assert.Contains("CSV appears to be empty", ex.Message, StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -21,7 +21,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,BUY,Some ETF,IE00TEST0001,1.23,2,2026-02-01T00:00:00.000Z
 			""";
 
-		var trades = ReadTradesFromCsv(csv);
+		var trades = ReadTradeDataFromCsv(csv).Trades;
 
 		var trade = Assert.Single(trades);
 		Assert.Equal("IE00TEST0001", trade.Isin);
@@ -39,7 +39,7 @@ public sealed class CsvTradeReaderTests
 			INTEREST_FROM_CASH,,,,,,2026-02-01T00:00:00.000Z
 			""";
 
-		var trades = ReadTradesFromCsv(csv);
+		var trades = ReadTradeDataFromCsv(csv).Trades;
 
 		Assert.Empty(trades);
 	}
@@ -52,7 +52,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,BUY,Some ETF,IE00TEST0001,1.23,-1,2026-02-01T00:00:00.000Z
 			""";
 
-		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
+		var ex = Assert.Throws<ValidationException>(() => ReadTradeDataFromCsv(csv).Trades);
 		Assert.Contains("Quantity must be > 0", ex.Message, StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -64,7 +64,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,BUY,Some ETF,IE00TEST0001,-0.01,1,2026-02-01T00:00:00.000Z
 			""";
 
-		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
+		var ex = Assert.Throws<ValidationException>(() => ReadTradeDataFromCsv(csv).Trades);
 		Assert.Contains("Price must be >= 0", ex.Message, StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -76,7 +76,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,BUY,Some ETF,IE00TEST0001,1.23,1
 			""";
 
-		var ex = Assert.Throws<CsvHelper.MissingFieldException>(() => ReadTradesFromCsv(csv));
+		var ex = Assert.Throws<CsvHelper.MissingFieldException>(() => ReadTradeDataFromCsv(csv).Trades);
 	}
 
 	[Fact]
@@ -87,7 +87,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,HOLD,Some ETF,IE00TEST0001,1.23,1,2026-02-01T00:00:00.000Z
 			""";
 
-		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
+		var ex = Assert.Throws<ValidationException>(() => ReadTradeDataFromCsv(csv).Trades);
 		Assert.Contains("Buy/Sell", ex.Message, StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -99,7 +99,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,BUY,"Some, ETF",IE00TEST0001,1.23,1,2026-02-01T00:00:00.000Z
 			""";
 
-		var trades = ReadTradesFromCsv(csv);
+		var trades = ReadTradeDataFromCsv(csv).Trades;
 
 		var trade = Assert.Single(trades);
 		Assert.Equal("IE00TEST0001", trade.Isin);
@@ -130,7 +130,7 @@ public sealed class CsvTradeReaderTests
 			ORDER,BUY,Some ETF,,1.23,1,2026-02-01T00:00:00.000Z
 			""";
 
-		var ex = Assert.Throws<ValidationException>(() => ReadTradesFromCsv(csv));
+		var ex = Assert.Throws<ValidationException>(() => ReadTradeDataFromCsv(csv).Trades);
 		Assert.Contains("ISIN is missing", ex.Message, StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -157,16 +157,9 @@ public sealed class CsvTradeReaderTests
 		return CsvTradeReader.ReadTradeData(reader);
 	}
 
-	private static IReadOnlyList<Trade> ReadTradesFromCsv(string csv)
-	{
-		using var reader = new StringReader(csv);
-		return CsvTradeReader.ReadTrades(reader);
-	}
-
 	private static IReadOnlyList<Trade> ReadTradesFromDataFile(string fileName)
 	{
 		var path = Path.Combine(AppContext.BaseDirectory, "Data", fileName);
-		using var reader = File.OpenText(path);
-		return CsvTradeReader.ReadTrades(reader);
+		return CsvTradeReader.ReadTradeData(path).Trades;
 	}
 }

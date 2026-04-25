@@ -143,6 +143,22 @@ public sealed class AveragePricePositionTrackerTests
 	}
 
 	[Fact]
+	public void ProcessSell_ReturnsDisposalWithTaxYearAndSaleBreakdown()
+	{
+		var tracker = new AveragePricePositionTracker("AAA");
+		tracker.ProcessBuy(Buy("AAA", 10, 10m, dayOffset: 0));
+
+		Trade sale = new(IsinFor("AAA"), "AAA", TradeSide.Sell, 5m, 15m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+
+		RealisedDisposal disposal = tracker.ProcessSell(sale);
+
+		Assert.Equal(new TaxYear(2024), disposal.TaxYear);
+		Assert.Equal(75m, disposal.SellProceeds);
+		Assert.Equal(50m, disposal.CostBasisOfSoldShares);
+		Assert.Equal(25m, disposal.RealisedProfit);
+	}
+
+	[Fact]
 	public void Process_WhenSellExceedsBought_ThrowsValidationException()
 	{
 		Assert.Throws<ValidationException>(() => GetSummary(

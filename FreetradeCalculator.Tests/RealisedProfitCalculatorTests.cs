@@ -24,10 +24,9 @@ public sealed class RealisedProfitCalculatorTests
 		Trade[] trades = [ buyA, buyB, sellA ];
 
 		var trackerA = Substitute.For<IPositionTrackingStrategy>();
-		trackerA.ToSummary().Returns(new PositionSummary("AAA", 0, 0, 0, 0));
+		trackerA.ProcessSell(sellA).Returns(new RealisedDisposal(sellA.Isin, sellA.Title, sellA.Timestamp, sellA.Quantity, sellA.Quantity * sellA.PricePerShare, sellA.Quantity));
 
 		var trackerB = Substitute.For<IPositionTrackingStrategy>();
-		trackerB.ToSummary().Returns(new PositionSummary("BBB", 0, 0, 0, 0));
 
 		var calculator = new RealisedProfitCalculator(title => title switch
 		{
@@ -38,14 +37,14 @@ public sealed class RealisedProfitCalculatorTests
 
 		var results = calculator.Calculate(trades);
 
-		Assert.Equal(2, results.Count);
+		var taxYear = Assert.Single(results);
+		var position = Assert.Single(taxYear.Positions);
+		Assert.Equal("AAA", position.Title);
 
 		trackerA.Received(1).ProcessBuy(buyA);
 		trackerA.Received(1).ProcessSell(sellA);
-		trackerA.Received(1).ToSummary();
 
 		trackerB.Received(1).ProcessBuy(buyB);
-		trackerB.Received(1).ToSummary();
 	}
 
 	[Fact]
@@ -77,7 +76,7 @@ public sealed class RealisedProfitCalculatorTests
 	}
 
 	[Fact]
-	public void Calculate_WhenTitleChangesButIsinMatches_TracksSingleInvestment()
+	public void Calculate_WhenTitleChangesButIsinMatches_UsesLatestTitleInTaxYearSummary()
 	{
 		Trade[] trades =
 		[
@@ -89,10 +88,41 @@ public sealed class RealisedProfitCalculatorTests
 
 		var results = calculator.Calculate(trades);
 
-		var summary = Assert.Single(results);
+		var taxYear = Assert.Single(results);
+		var summary = Assert.Single(taxYear.Positions);
 		Assert.Equal("Asset B", summary.Title);
-		Assert.Equal(1m, summary.TotalBought);
 		Assert.Equal(1m, summary.TotalSold);
+	}
+
+	[Fact]
+	public void Calculate_WhenAssetIsSoldAcrossTwoTaxYears_GroupsDisposalsSeparately()
+	{
+		Trade[] trades =
+		[
+			new("IE00TEST1234", "Asset A", TradeSide.Buy, 100m, 10m, new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero)),
+			new("IE00TEST1234", "Asset A", TradeSide.Sell, 50m, 12m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero)),
+			new("IE00TEST1234", "Asset A", TradeSide.Sell, 50m, 14m, new DateTimeOffset(2025, 6, 1, 0, 0, 0, TimeSpan.Zero))
+		];
+
+		var calculator = new RealisedProfitCalculator(title => new AveragePricePositionTracker(title));
+
+		var results = calculator.Calculate(trades);
+
+		Assert.Equal(2, results.Count);
+
+		Assert.Equal(new TaxYear(2024), results[0].TaxYear);
+		var firstYearPosition = Assert.Single(results[0].Positions);
+		Assert.Equal(50m, firstYearPosition.TotalSold);
+		Assert.Equal(600m, firstYearPosition.TotalSellProceeds);
+		Assert.Equal(500m, firstYearPosition.TotalCostBasisOfSoldShares);
+		Assert.Equal(100m, firstYearPosition.RealisedProfit);
+
+		Assert.Equal(new TaxYear(2025), results[1].TaxYear);
+		var secondYearPosition = Assert.Single(results[1].Positions);
+		Assert.Equal(50m, secondYearPosition.TotalSold);
+		Assert.Equal(700m, secondYearPosition.TotalSellProceeds);
+		Assert.Equal(500m, secondYearPosition.TotalCostBasisOfSoldShares);
+		Assert.Equal(200m, secondYearPosition.RealisedProfit);
 	}
 
 	[Fact]

@@ -18,13 +18,15 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
         _totalBought += trade.Quantity;
     }
 
-    public void ProcessSell(Trade trade)
+	public RealisedDisposal ProcessSell(Trade trade)
     {
 		_title = trade.Title;
+		decimal sellProceeds = trade.Quantity * trade.PricePerShare;
         _totalSold += trade.Quantity;
-        _totalSellProceeds += trade.Quantity * trade.PricePerShare;
+		_totalSellProceeds += sellProceeds;
 
         decimal remainingQuantityToSell = trade.Quantity;
+		decimal costBasisForThisSale = 0m;
 
         while (remainingQuantityToSell > 0)
         {
@@ -33,13 +35,17 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
 
             decimal quantityConsumed = Math.Min(remainingQuantityToSell, lot.QuantityRemaining);
 
-            _totalCostBasis += quantityConsumed * lot.PricePerShare;
+			decimal lotCost = quantityConsumed * lot.PricePerShare;
+			_totalCostBasis += lotCost;
+			costBasisForThisSale += lotCost;
             remainingQuantityToSell -= quantityConsumed;
             lot.QuantityRemaining -= quantityConsumed;
 
             if (lot.QuantityRemaining == 0)
                 _lots.Dequeue();
         }
+
+		return new RealisedDisposal(trade.Isin, trade.Title, trade.Timestamp, trade.Quantity, sellProceeds, costBasisForThisSale);
     }
 
     public PositionSummary ToSummary() =>

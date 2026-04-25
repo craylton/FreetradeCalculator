@@ -21,14 +21,15 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 		_holdingCost += trade.Quantity * trade.PricePerShare;
 	}
 
-	public void ProcessSell(Trade trade)
+	public RealisedDisposal ProcessSell(Trade trade)
 	{
 		_title = trade.Title;
 		if (_holdingQuantity < trade.Quantity)
 			throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o}.");
 
+		decimal sellProceeds = trade.Quantity * trade.PricePerShare;
 		_totalSold += trade.Quantity;
-		_totalSellProceeds += trade.Quantity * trade.PricePerShare;
+		_totalSellProceeds += sellProceeds;
 
 		decimal costBasisForThisSale = trade.Quantity == _holdingQuantity
 			? _holdingCost
@@ -37,6 +38,8 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 		_totalCostBasisOfSoldShares += costBasisForThisSale;
 		_holdingQuantity -= trade.Quantity;
 		_holdingCost -= costBasisForThisSale;
+
+		return new RealisedDisposal(trade.Isin, trade.Title, trade.Timestamp, trade.Quantity, sellProceeds, costBasisForThisSale);
 	}
 
 	public PositionSummary ToSummary() =>

@@ -1,7 +1,7 @@
 namespace FreetradeCalculator.Domain;
 
 public sealed record PositionSummary(
-	string Title,
+	string Isin,
 	decimal TotalBought,
 	decimal TotalSold,
 	decimal TotalSellProceeds,

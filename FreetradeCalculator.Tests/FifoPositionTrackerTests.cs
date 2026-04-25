@@ -9,14 +9,14 @@ public sealed class FifoPositionTrackerTests
 	private static string IsinFor(string title) => $"ISIN-{title}";
 
 	private static Trade Buy(string title, decimal qty, decimal price, int dayOffset = 0) =>
-		new(IsinFor(title), title, TradeSide.Buy, qty, price, BaseTime.AddDays(dayOffset));
+		new(IsinFor(title), TradeSide.Buy, qty, price, BaseTime.AddDays(dayOffset));
 
 	private static Trade Sell(string title, decimal qty, decimal price, int dayOffset = 0) =>
-		new(IsinFor(title), title, TradeSide.Sell, qty, price, BaseTime.AddDays(dayOffset));
+		new(IsinFor(title), TradeSide.Sell, qty, price, BaseTime.AddDays(dayOffset));
 
     private static PositionSummary GetSummary(params Trade[] trades)
     {
-        var tracker = new FifoPositionTracker("AAA");
+		var tracker = new FifoPositionTracker(IsinFor("AAA"));
         foreach (var trade in trades)
         {
             if (trade.Side == TradeSide.Buy) tracker.ProcessBuy(trade);
@@ -32,6 +32,7 @@ public sealed class FifoPositionTrackerTests
             Buy("AAA", 10, 10m, dayOffset: 0),
             Sell("AAA", 5, 15m, dayOffset: 1));
 
+		Assert.Equal(IsinFor("AAA"), summary.Isin);
 		Assert.Equal(10m, summary.TotalBought);
 		Assert.Equal(5m, summary.TotalSold);
 		Assert.Equal(5m, summary.RemainingQuantity);
@@ -145,10 +146,10 @@ public sealed class FifoPositionTrackerTests
 	[Fact]
 	public void ProcessSell_ReturnsDisposalWithTaxYearAndSaleBreakdown()
 	{
-		var tracker = new FifoPositionTracker("AAA");
+		var tracker = new FifoPositionTracker(IsinFor("AAA"));
 		tracker.ProcessBuy(Buy("AAA", 10, 10m, dayOffset: 0));
 
-		Trade sale = new(IsinFor("AAA"), "AAA", TradeSide.Sell, 5m, 15m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+		Trade sale = new(IsinFor("AAA"), TradeSide.Sell, 5m, 15m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
 
 		RealisedDisposal disposal = tracker.ProcessSell(sale);
 

@@ -15,11 +15,11 @@ if (!File.Exists(inputPath))
     return 1;
 }
 
-IReadOnlyList<Trade> trades = CsvTradeReader.ReadTrades(inputPath);
+TradeReadResult tradeData = CsvTradeReader.ReadTradeData(inputPath);
 
-var calculator = new RealisedProfitCalculator(title => new AveragePricePositionTracker(title));
-IReadOnlyList<TaxYearSummary> summaries = calculator.Calculate(trades);
+var calculator = new RealisedProfitCalculator(isin => new AveragePricePositionTracker(isin));
+IReadOnlyList<TaxYearSummary> summaries = calculator.Calculate(tradeData.Trades);
 
-ConsoleRenderer.Render(summaries);
+ConsoleRenderer.Render(summaries, tradeData.TitlesByIsin);
 
 return 0;

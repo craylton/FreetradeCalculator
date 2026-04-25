@@ -10,10 +10,10 @@ public sealed class RealisedProfitCalculatorTests
 	private static string IsinFor(string title) => $"ISIN-{title}";
 
 	private static Trade Buy(string title, string? isin = null, int dayOffset = 0) =>
-		new(isin ?? IsinFor(title), title, TradeSide.Buy, 1, 1m, BaseTime.AddDays(dayOffset));
+		new(isin ?? IsinFor(title), TradeSide.Buy, 1, 1m, BaseTime.AddDays(dayOffset));
 
 	private static Trade Sell(string title, string? isin = null, int dayOffset = 0) =>
-		new(isin ?? IsinFor(title), title, TradeSide.Sell, 1, 1m, BaseTime.AddDays(dayOffset));
+		new(isin ?? IsinFor(title), TradeSide.Sell, 1, 1m, BaseTime.AddDays(dayOffset));
 
 	[Fact]
 	public void Calculate_WhenTwoTitles_CalculatesEachSeparately()
@@ -24,14 +24,14 @@ public sealed class RealisedProfitCalculatorTests
 		Trade[] trades = [ buyA, buyB, sellA ];
 
 		var trackerA = Substitute.For<IPositionTrackingStrategy>();
-		trackerA.ProcessSell(sellA).Returns(new RealisedDisposal(sellA.Isin, sellA.Title, sellA.Timestamp, sellA.Quantity, sellA.Quantity * sellA.PricePerShare, sellA.Quantity));
+		trackerA.ProcessSell(sellA).Returns(new RealisedDisposal(sellA.Isin, sellA.Timestamp, sellA.Quantity, sellA.Quantity * sellA.PricePerShare, sellA.Quantity));
 
 		var trackerB = Substitute.For<IPositionTrackingStrategy>();
 
-		var calculator = new RealisedProfitCalculator(title => title switch
+		var calculator = new RealisedProfitCalculator(isin => isin switch
 		{
-			"AAA" => trackerA,
-			"BBB" => trackerB,
+			"ISIN-AAA" => trackerA,
+			"ISIN-BBB" => trackerB,
 			_ => throw new Exception()
 		});
 
@@ -39,7 +39,7 @@ public sealed class RealisedProfitCalculatorTests
 
 		var taxYear = Assert.Single(results);
 		var position = Assert.Single(taxYear.Positions);
-		Assert.Equal("AAA", position.Title);
+		Assert.Equal("ISIN-AAA", position.Isin);
 
 		trackerA.Received(1).ProcessBuy(buyA);
 		trackerA.Received(1).ProcessSell(sellA);
@@ -76,7 +76,7 @@ public sealed class RealisedProfitCalculatorTests
 	}
 
 	[Fact]
-	public void Calculate_WhenTitleChangesButIsinMatches_UsesLatestTitleInTaxYearSummary()
+	public void Calculate_WhenTitleChangesButIsinMatches_AggregatesByIsin()
 	{
 		Trade[] trades =
 		[
@@ -84,14 +84,34 @@ public sealed class RealisedProfitCalculatorTests
 			Sell("Asset B", isin: "IE00TEST1234", dayOffset: 1)
 		];
 
-		var calculator = new RealisedProfitCalculator(title => new AveragePricePositionTracker(title));
+		var calculator = new RealisedProfitCalculator(isin => new AveragePricePositionTracker(isin));
 
 		var results = calculator.Calculate(trades);
 
 		var taxYear = Assert.Single(results);
 		var summary = Assert.Single(taxYear.Positions);
-		Assert.Equal("Asset B", summary.Title);
+		Assert.Equal("IE00TEST1234", summary.Isin);
 		Assert.Equal(1m, summary.TotalSold);
+	}
+
+	[Fact]
+	public void Calculate_WhenTitleChangesButIsinMatches_UsesIsinToResolveTracker()
+	{
+		Trade[] trades =
+		[
+			Buy("Asset A", isin: "IE00TEST1234", dayOffset: 0),
+			Sell("Asset B", isin: "IE00TEST1234", dayOffset: 1)
+		];
+
+		var tracker = Substitute.For<IPositionTrackingStrategy>();
+		tracker.ProcessSell(trades[1]).Returns(new RealisedDisposal(trades[1].Isin, trades[1].Timestamp, trades[1].Quantity, trades[1].Quantity * trades[1].PricePerShare, trades[1].Quantity));
+
+		var calculator = new RealisedProfitCalculator(isin => isin == "IE00TEST1234" ? tracker : throw new Exception());
+
+		calculator.Calculate(trades);
+
+		tracker.Received(1).ProcessBuy(trades[0]);
+		tracker.Received(1).ProcessSell(trades[1]);
 	}
 
 	[Fact]
@@ -99,12 +119,12 @@ public sealed class RealisedProfitCalculatorTests
 	{
 		Trade[] trades =
 		[
-			new("IE00TEST1234", "Asset A", TradeSide.Buy, 100m, 10m, new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero)),
-			new("IE00TEST1234", "Asset A", TradeSide.Sell, 50m, 12m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero)),
-			new("IE00TEST1234", "Asset A", TradeSide.Sell, 50m, 14m, new DateTimeOffset(2025, 6, 1, 0, 0, 0, TimeSpan.Zero))
+			new("IE00TEST1234", TradeSide.Buy, 100m, 10m, new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero)),
+			new("IE00TEST1234", TradeSide.Sell, 50m, 12m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero)),
+			new("IE00TEST1234", TradeSide.Sell, 50m, 14m, new DateTimeOffset(2025, 6, 1, 0, 0, 0, TimeSpan.Zero))
 		];
 
-		var calculator = new RealisedProfitCalculator(title => new AveragePricePositionTracker(title));
+		var calculator = new RealisedProfitCalculator(isin => new AveragePricePositionTracker(isin));
 
 		var results = calculator.Calculate(trades);
 
@@ -128,7 +148,7 @@ public sealed class RealisedProfitCalculatorTests
 	[Fact]
 	public void Calculate_WhenTradeSideIsUnknown_ThrowsValidationException()
 	{
-		Trade[] trades = [ new Trade("ISIN-UNKNOWN", "UNKNOWN", (TradeSide)999, 1, 1m, BaseTime) ];
+		Trade[] trades = [ new Trade("ISIN-UNKNOWN", (TradeSide)999, 1, 1m, BaseTime) ];
 		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
 
 		var exception = Assert.Throws<ValidationException>(() => calculator.Calculate(trades));

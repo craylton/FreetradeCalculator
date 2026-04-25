@@ -5,11 +5,11 @@ namespace FreetradeCalculator.Output;
 
 public static class ConsoleRenderer
 {
-	private record ColumnDefinition(string Header, Func<TaxYearPositionSummary, string> GetValue, bool AlignRight = true)
+	private record ColumnDefinition(string Header, Func<TaxYearPositionSummary, IReadOnlyDictionary<string, string>, string> GetValue, bool AlignRight = true)
     {
-		public Column ToColumn(IReadOnlyList<TaxYearPositionSummary> summaries)
+		public Column ToColumn(IReadOnlyList<TaxYearPositionSummary> summaries, IReadOnlyDictionary<string, string> titlesByIsin)
         {
-            string[] values = [.. summaries.Select(GetValue)];
+			string[] values = [.. summaries.Select(summary => GetValue(summary, titlesByIsin))];
             int width = Math.Max(Header.Length, values.Max(value => value.Length));
             return new Column(Header, values, width, AlignRight);
         }
@@ -27,14 +27,14 @@ public static class ConsoleRenderer
 
     private static readonly ColumnDefinition[] ColumnDefinitions =
     [
-        new("Title", s => s.Title, false),
-        new("Sold", s => FormatQuantity(s.TotalSold)),
-        new("Realised P&L", s => FormatMoney(s.RealisedProfit)),
-        new("Sell Proceeds", s => FormatMoney(s.TotalSellProceeds)),
-        new("Cost Basis", s => FormatMoney(s.TotalCostBasisOfSoldShares))
+		new("Title", (s, titlesByIsin) => GetTitle(s.Isin, titlesByIsin), false),
+		new("Sold", (s, _) => FormatQuantity(s.TotalSold)),
+		new("Realised P&L", (s, _) => FormatMoney(s.RealisedProfit)),
+		new("Sell Proceeds", (s, _) => FormatMoney(s.TotalSellProceeds)),
+		new("Cost Basis", (s, _) => FormatMoney(s.TotalCostBasisOfSoldShares))
     ];
 
-	public static void Render(IReadOnlyList<TaxYearSummary> summaries)
+	public static void Render(IReadOnlyList<TaxYearSummary> summaries, IReadOnlyDictionary<string, string> titlesByIsin)
     {
         if (summaries.Count == 0)
         {
@@ -49,7 +49,7 @@ public static class ConsoleRenderer
 
 			TaxYearSummary summary = summaries[i];
 			Console.WriteLine($"Tax Year {summary.TaxYear}");
-			RenderPositions(summary.Positions);
+			RenderPositions(summary.Positions, titlesByIsin);
 			RenderTotals(summary.TotalRealisedProfit, summary.TotalSellProceeds, summary.TotalCostBasis);
         }
 
@@ -67,9 +67,13 @@ public static class ConsoleRenderer
 		Console.WriteLine($"  Cost Basis   : {FormatMoney(totalCostBasis)}");
     }
 
-	private static void RenderPositions(IReadOnlyList<TaxYearPositionSummary> summaries)
+	private static void RenderPositions(IReadOnlyList<TaxYearPositionSummary> summaries, IReadOnlyDictionary<string, string> titlesByIsin)
 	{
-		Column[] columns = [.. ColumnDefinitions.Select(definition => definition.ToColumn(summaries))];
+		TaxYearPositionSummary[] orderedSummaries = [.. summaries
+			.OrderBy(summary => GetTitle(summary.Isin, titlesByIsin), StringComparer.Ordinal)
+			.ThenBy(summary => summary.Isin, StringComparer.Ordinal)];
+
+		Column[] columns = [.. ColumnDefinitions.Select(definition => definition.ToColumn(orderedSummaries, titlesByIsin))];
 
 		IEnumerable<string> headers = columns.Select(column => column.FormatHeaderCell());
 		Console.WriteLine(string.Join(" | ", headers));
@@ -92,6 +96,9 @@ public static class ConsoleRenderer
 		Console.WriteLine($"  Sell Proceeds: {FormatMoney(totalSellProceeds)}");
 		Console.WriteLine($"  Cost Basis   : {FormatMoney(totalCostBasis)}");
 	}
+
+	private static string GetTitle(string isin, IReadOnlyDictionary<string, string> titlesByIsin) =>
+		titlesByIsin.TryGetValue(isin, out string? title) ? title : isin;
 
     private static string FormatQuantity(decimal value) => value.ToString("0.########", CultureInfo.InvariantCulture);
     private static string FormatMoney(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);

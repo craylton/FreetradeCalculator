@@ -2,9 +2,9 @@ using FreetradeCalculator.Domain;
 
 namespace FreetradeCalculator.Calculators;
 
-public sealed class AveragePricePositionTracker(string title) : IPositionTrackingStrategy
+public sealed class AveragePricePositionTracker(string isin) : IPositionTrackingStrategy
 {
-	private string _title = title;
+	private readonly string _isin = isin;
 	private decimal _totalBought;
 	private decimal _totalSold;
 	private decimal _totalSellProceeds;
@@ -15,7 +15,6 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 
 	public void ProcessBuy(Trade trade)
 	{
-		_title = trade.Title;
 		_totalBought += trade.Quantity;
 		_holdingQuantity += trade.Quantity;
 		_holdingCost += trade.Quantity * trade.PricePerShare;
@@ -23,9 +22,8 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 
 	public RealisedDisposal ProcessSell(Trade trade)
 	{
-		_title = trade.Title;
 		if (_holdingQuantity < trade.Quantity)
-			throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o}.");
+			throw new ValidationException($"Oversell detected for ISIN '{trade.Isin}' at {trade.Timestamp:o}.");
 
 		decimal sellProceeds = trade.Quantity * trade.PricePerShare;
 		_totalSold += trade.Quantity;
@@ -39,9 +37,14 @@ public sealed class AveragePricePositionTracker(string title) : IPositionTrackin
 		_holdingQuantity -= trade.Quantity;
 		_holdingCost -= costBasisForThisSale;
 
-		return new RealisedDisposal(trade.Isin, trade.Title, trade.Timestamp, trade.Quantity, sellProceeds, costBasisForThisSale);
+		return new RealisedDisposal(
+            trade.Isin,
+            trade.Timestamp,
+            trade.Quantity,
+            sellProceeds,
+            costBasisForThisSale);
 	}
 
 	public PositionSummary ToSummary() =>
-		new(_title, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasisOfSoldShares);
+		new(_isin, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasisOfSoldShares);
 }

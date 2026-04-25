@@ -19,7 +19,7 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
 	private IReadOnlyList<RealisedDisposal> CalculateForInstrument(IGrouping<string, Trade> tradesForInstrument)
     {
 		Trade[] orderedTrades = [.. tradesForInstrument.OrderBy(t => t.Timestamp)];
-		IPositionTrackingStrategy positionTracker = strategyFactory(orderedTrades[0].Title);
+		IPositionTrackingStrategy positionTracker = strategyFactory(orderedTrades[0].Isin);
 		List<RealisedDisposal> realisedDisposals = [];
 
 		foreach (Trade trade in orderedTrades)
@@ -30,7 +30,10 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
 		return realisedDisposals;
     }
 
-	private static void ProcessTrade(IPositionTrackingStrategy positionTracker, Trade trade, ICollection<RealisedDisposal> realisedDisposals)
+	private static void ProcessTrade(
+        IPositionTrackingStrategy positionTracker,
+        Trade trade,
+        ICollection<RealisedDisposal> realisedDisposals)
 	{
 		switch (trade.Side)
 		{
@@ -43,7 +46,7 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
 				break;
 
 			default:
-				throw new ValidationException($"Unknown trade side '{trade.Side}' for '{trade.Title}' at {trade.Timestamp:o}.");
+				throw new ValidationException($"Unknown trade side '{trade.Side}' for ISIN '{trade.Isin}' at {trade.Timestamp:o}.");
 		}
 	}
 
@@ -52,7 +55,7 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
 		TaxYearPositionSummary[] positions = [.. disposalsForTaxYear
 			.GroupBy(disposal => disposal.Isin, StringComparer.Ordinal)
 			.Select(CreatePositionSummary)
-			.OrderBy(summary => summary.Title, StringComparer.Ordinal)];
+			.OrderBy(summary => summary.Isin, StringComparer.Ordinal)];
 
 		return new TaxYearSummary(disposalsForTaxYear.Key, positions);
 	}
@@ -60,11 +63,9 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
 	private static TaxYearPositionSummary CreatePositionSummary(IGrouping<string, RealisedDisposal> disposalsForInstrument)
 	{
 		RealisedDisposal[] orderedDisposals = [.. disposalsForInstrument.OrderBy(disposal => disposal.Timestamp)];
-		RealisedDisposal latestDisposal = orderedDisposals[^1];
 
 		return new TaxYearPositionSummary(
 			disposalsForInstrument.Key,
-			latestDisposal.Title,
 			orderedDisposals.Sum(disposal => disposal.QuantitySold),
 			orderedDisposals.Sum(disposal => disposal.SellProceeds),
 			orderedDisposals.Sum(disposal => disposal.CostBasisOfSoldShares));

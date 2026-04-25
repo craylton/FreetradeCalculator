@@ -2,9 +2,9 @@ using FreetradeCalculator.Domain;
 
 namespace FreetradeCalculator.Calculators;
 
-public sealed class FifoPositionTracker(string title) : IPositionTrackingStrategy
+public sealed class FifoPositionTracker(string isin) : IPositionTrackingStrategy
 {
-	private string _title = title;
+	private readonly string _isin = isin;
     private readonly Queue<BuyLot> _lots = new();
     private decimal _totalBought;
     private decimal _totalSold;
@@ -13,14 +13,12 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
 
     public void ProcessBuy(Trade trade)
     {
-		_title = trade.Title;
         _lots.Enqueue(new BuyLot(trade.Quantity, trade.PricePerShare));
         _totalBought += trade.Quantity;
     }
 
 	public RealisedDisposal ProcessSell(Trade trade)
     {
-		_title = trade.Title;
 		decimal sellProceeds = trade.Quantity * trade.PricePerShare;
         _totalSold += trade.Quantity;
 		_totalSellProceeds += sellProceeds;
@@ -31,7 +29,7 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
         while (remainingQuantityToSell > 0)
         {
             if (!_lots.TryPeek(out BuyLot? lot))
-				throw new ValidationException($"Oversell detected for '{trade.Title}' at {trade.Timestamp:o}.");
+				throw new ValidationException($"Oversell detected for ISIN '{trade.Isin}' at {trade.Timestamp:o}.");
 
             decimal quantityConsumed = Math.Min(remainingQuantityToSell, lot.QuantityRemaining);
 
@@ -45,11 +43,16 @@ public sealed class FifoPositionTracker(string title) : IPositionTrackingStrateg
                 _lots.Dequeue();
         }
 
-		return new RealisedDisposal(trade.Isin, trade.Title, trade.Timestamp, trade.Quantity, sellProceeds, costBasisForThisSale);
+		return new RealisedDisposal(
+            trade.Isin,
+            trade.Timestamp,
+            trade.Quantity,
+            sellProceeds,
+            costBasisForThisSale);
     }
 
     public PositionSummary ToSummary() =>
-		new(_title, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasis);
+		new(_isin, _totalBought, _totalSold, _totalSellProceeds, _totalCostBasis);
 
     private sealed class BuyLot(decimal quantityRemaining, decimal pricePerShare)
     {

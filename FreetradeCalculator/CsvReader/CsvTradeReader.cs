@@ -8,33 +8,52 @@ public static class CsvTradeReader
 {
     private const string OrderType = "ORDER";
 
+	public static TradeReadResult ReadTradeData(string path)
+	{
+		using var reader = new StreamReader(path);
+		return ReadTradeData(reader);
+	}
+
     public static IReadOnlyList<Trade> ReadTrades(string path)
     {
-        using var reader = new StreamReader(path);
-        return ReadTrades(reader);
+		return ReadTradeData(path).Trades;
     }
+
+	public static TradeReadResult ReadTradeData(TextReader reader)
+	{
+		var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+		{
+			HasHeaderRecord = true,
+			TrimOptions = TrimOptions.Trim,
+			ShouldSkipRecord = args => args.Row.Parser.Record?.All(string.IsNullOrWhiteSpace) ?? true
+		};
+
+		using var csv = new CsvHelper.CsvReader(reader, config);
+
+		if (!csv.Read() || !csv.ReadHeader() || csv.HeaderRecord is null)
+			throw new ValidationException("CSV appears to be empty or missing header.");
+
+		List<Trade> trades = [];
+		Dictionary<string, string> titlesByIsin = new(StringComparer.Ordinal);
+
+		foreach (ParsedTrade parsedTrade in csv
+			.GetRecords<TradeCsvRow>()
+			.Where(r => string.Equals(r.Type, OrderType, StringComparison.OrdinalIgnoreCase))
+			.Select(ParseOrderRow))
+		{
+			trades.Add(parsedTrade.Trade);
+			titlesByIsin[parsedTrade.Trade.Isin] = parsedTrade.Title;
+		}
+
+		return new TradeReadResult(trades, titlesByIsin);
+	}
 
     public static IReadOnlyList<Trade> ReadTrades(TextReader reader)
     {
-        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            HasHeaderRecord = true,
-            TrimOptions = TrimOptions.Trim,
-            ShouldSkipRecord = args => args.Row.Parser.Record?.All(string.IsNullOrWhiteSpace) ?? true
-        };
-
-        using var csv = new CsvHelper.CsvReader(reader, config);
-
-        if (!csv.Read() || !csv.ReadHeader() || csv.HeaderRecord is null)
-            throw new ValidationException("CSV appears to be empty or missing header.");
-
-        return [.. csv
-            .GetRecords<TradeCsvRow>()
-            .Where(r => string.Equals(r.Type, OrderType, StringComparison.OrdinalIgnoreCase))
-            .Select(ParseOrderRow)];
+		return ReadTradeData(reader).Trades;
     }
 
-    private static Trade ParseOrderRow(TradeCsvRow row)
+	private static ParsedTrade ParseOrderRow(TradeCsvRow row)
     {
 		if (string.IsNullOrWhiteSpace(row.Isin))
 			throw new ValidationException("Invalid ORDER row: ISIN is missing.");
@@ -59,12 +78,15 @@ public static class CsvTradeReader
 			_ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{displayTitle}'.")
         };
 
-        return new Trade(
-			row.Isin,
-			displayTitle,
-            side,
-            row.Quantity.Value,
-            row.PricePerShare.Value,
-            row.Timestamp.Value);
+		return new ParsedTrade(
+			new Trade(
+				row.Isin,
+				side,
+				row.Quantity.Value,
+				row.PricePerShare.Value,
+				row.Timestamp.Value),
+			displayTitle);
     }
+
+	private sealed record ParsedTrade(Trade Trade, string Title);
 }

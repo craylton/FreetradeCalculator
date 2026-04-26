@@ -16,6 +16,9 @@ public sealed class RealisedProfitCalculatorTests
 	private static Trade Sell(string title, string? isin = null, int dayOffset = 0) =>
 		new(isin ?? IsinFor(title), TradeSide.Sell, 1, 1m, BaseTime.AddDays(dayOffset));
 
+	private static Dividend Dividend(string title, decimal amount, string? isin = null, int dayOffset = 0) =>
+		new(isin ?? IsinFor(title), amount, BaseTime.AddDays(dayOffset));
+
 	[Fact]
 	public void Calculate_WhenTwoTitles_CalculatesEachSeparately()
 	{
@@ -36,7 +39,7 @@ public sealed class RealisedProfitCalculatorTests
 			_ => throw new Exception()
 		});
 
-		var results = calculator.Calculate(trades);
+		var results = calculator.Calculate(trades, []);
 
 		var taxYear = Assert.Single(results);
 		var position = Assert.Single(taxYear.Positions);
@@ -59,7 +62,7 @@ public sealed class RealisedProfitCalculatorTests
 
 		var calculator = new RealisedProfitCalculator(_ => trackerMock);
 
-		calculator.Calculate(trades);
+		calculator.Calculate(trades, []);
 
 		Received.InOrder(() =>
 		{
@@ -72,8 +75,77 @@ public sealed class RealisedProfitCalculatorTests
 	public void Calculate_WhenTradeListIsEmpty_ReturnsEmptyList()
 	{
 		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
-		var results = calculator.Calculate([]);
+		var results = calculator.Calculate([], []);
 		Assert.Empty(results);
+	}
+
+	[Fact]
+	public void Calculate_WhenDividendExists_AddsDividendTotalsToMatchingTaxYearAndInstrument()
+	{
+		Trade[] trades =
+		[
+			new("IE00TEST1234", TradeSide.Buy, 100m, 10m, new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero)),
+			new("IE00TEST1234", TradeSide.Sell, 50m, 12m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero))
+		];
+
+		Dividend[] dividends =
+		[
+			new("IE00TEST1234", 25.32m, new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero))
+		];
+
+		var calculator = new RealisedProfitCalculator(isin => new AveragePricePositionTracker(isin));
+
+		var results = calculator.Calculate(trades, dividends);
+
+		var taxYear = Assert.Single(results);
+		var summary = Assert.Single(taxYear.Positions);
+		Assert.Equal("IE00TEST1234", summary.Isin);
+		Assert.Equal(25.32m, summary.TotalDividends);
+		Assert.Equal(25.32m, taxYear.TotalDividends);
+		Assert.Equal(100m, summary.RealisedProfit);
+	}
+
+	[Fact]
+	public void Calculate_WhenYearContainsOnlyDividends_ReturnsTaxYearSummary()
+	{
+		Dividend[] dividends =
+		[
+			new("IE00TEST1234", 10m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero)),
+			new("IE00TEST1234", 15m, new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero))
+		];
+
+		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
+
+		var results = calculator.Calculate([], dividends);
+
+		var taxYear = Assert.Single(results);
+		Assert.Equal(new TaxYear(2024), taxYear.TaxYear);
+
+		var summary = Assert.Single(taxYear.Positions);
+		Assert.Equal("IE00TEST1234", summary.Isin);
+		Assert.Equal(0m, summary.TotalSold);
+		Assert.Equal(25m, summary.TotalDividends);
+		Assert.Equal(0m, summary.RealisedProfit);
+	}
+
+	[Fact]
+	public void Calculate_WhenDividendsSpanTwoTaxYears_GroupsThemSeparately()
+	{
+		Dividend[] dividends =
+		[
+			new("IE00TEST1234", 10m, new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero)),
+			new("IE00TEST1234", 15m, new DateTimeOffset(2025, 6, 1, 0, 0, 0, TimeSpan.Zero))
+		];
+
+		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
+
+		var results = calculator.Calculate([], dividends);
+
+		Assert.Equal(2, results.Count);
+		Assert.Equal(new TaxYear(2024), results[0].TaxYear);
+		Assert.Equal(10m, Assert.Single(results[0].Positions).TotalDividends);
+		Assert.Equal(new TaxYear(2025), results[1].TaxYear);
+		Assert.Equal(15m, Assert.Single(results[1].Positions).TotalDividends);
 	}
 
 	[Fact]
@@ -87,7 +159,7 @@ public sealed class RealisedProfitCalculatorTests
 
 		var calculator = new RealisedProfitCalculator(isin => new AveragePricePositionTracker(isin));
 
-		var results = calculator.Calculate(trades);
+		var results = calculator.Calculate(trades, []);
 
 		var taxYear = Assert.Single(results);
 		var summary = Assert.Single(taxYear.Positions);
@@ -109,7 +181,7 @@ public sealed class RealisedProfitCalculatorTests
 
 		var calculator = new RealisedProfitCalculator(isin => isin == "IE00TEST1234" ? tracker : throw new Exception());
 
-		calculator.Calculate(trades);
+		calculator.Calculate(trades, []);
 
 		tracker.Received(1).ProcessBuy(trades[0]);
 		tracker.Received(1).ProcessSell(trades[1]);
@@ -127,7 +199,7 @@ public sealed class RealisedProfitCalculatorTests
 
 		var calculator = new RealisedProfitCalculator(isin => new AveragePricePositionTracker(isin));
 
-		var results = calculator.Calculate(trades);
+		var results = calculator.Calculate(trades, []);
 
 		Assert.Equal(2, results.Count);
 
@@ -152,7 +224,7 @@ public sealed class RealisedProfitCalculatorTests
 		Trade[] trades = [ new Trade("ISIN-UNKNOWN", (TradeSide)999, 1, 1m, BaseTime) ];
 		var calculator = new RealisedProfitCalculator(_ => Substitute.For<IPositionTrackingStrategy>());
 
-		var exception = Assert.Throws<ValidationException>(() => calculator.Calculate(trades));
+		var exception = Assert.Throws<ValidationException>(() => calculator.Calculate(trades, []));
 
 		Assert.Contains("Unknown trade side", exception.Message);
 	}

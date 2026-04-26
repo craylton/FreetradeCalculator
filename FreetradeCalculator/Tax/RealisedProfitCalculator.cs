@@ -5,17 +5,31 @@ namespace FreetradeCalculator.Tax;
 
 public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrategy> strategyFactory)
 {
-    public IReadOnlyList<TaxYearSummary> Calculate(IEnumerable<Trade> trades)
+    public IReadOnlyList<TaxYearSummary> Calculate(IEnumerable<Trade> trades, IEnumerable<Dividend> dividends)
+    {
+        IEnumerable<TaxYearPositionEntry> positionEntries = GetDisposalEntries(trades)
+            .Concat(GetDividendEntries(dividends));
+
+        return [.. positionEntries
+            .GroupBy(entry => entry.TaxYear)
+            .OrderBy(group => group.Key)
+            .Select(CreateTaxYearSummary)];
+    }
+
+    private IEnumerable<TaxYearPositionEntry> GetDisposalEntries(IEnumerable<Trade> trades)
     {
         IEnumerable<RealisedDisposal> realisedDisposals = trades
             .GroupBy(trade => trade.Isin, StringComparer.Ordinal)
             .SelectMany(CalculateForInstrument);
 
-        return [.. realisedDisposals
-            .GroupBy(disposal => disposal.TaxYear)
-            .OrderBy(group => group.Key)
-            .Select(CreateTaxYearSummary)];
+        return realisedDisposals
+			.GroupBy(disposal => disposal.TaxYear)
+			.SelectMany(CreateDisposalEntriesForTaxYear);
     }
+
+    private static IEnumerable<TaxYearPositionEntry> GetDividendEntries(IEnumerable<Dividend> dividends) => dividends
+        .GroupBy(dividend => (TaxYear.From(dividend.Timestamp), dividend.Isin))
+        .Select(CreateDividendEntry);
 
     private IReadOnlyList<RealisedDisposal> CalculateForInstrument(IGrouping<string, Trade> tradesForInstrument)
     {
@@ -43,27 +57,73 @@ public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrat
             throw new ValidationException($"Unknown trade side '{trade.Side}' for ISIN '{trade.Isin}' at {trade.Timestamp:o}.");
     }
 
-    private static TaxYearSummary CreateTaxYearSummary(IGrouping<TaxYear, RealisedDisposal> disposalsForTaxYear)
+    private static TaxYearSummary CreateTaxYearSummary(IGrouping<TaxYear, TaxYearPositionEntry> entriesForTaxYear)
     {
-        IEnumerable<TaxYearPositionSummary> positions = disposalsForTaxYear
-            .GroupBy(disposal => disposal.Isin, StringComparer.Ordinal)
+        IEnumerable<TaxYearPositionSummary> positions = entriesForTaxYear
+            .GroupBy(entry => entry.Isin, StringComparer.Ordinal)
             .Select(CreatePositionSummary)
             .OrderBy(summary => summary.Isin, StringComparer.Ordinal);
 
-        return new TaxYearSummary(disposalsForTaxYear.Key, [.. positions]);
+        return new TaxYearSummary(entriesForTaxYear.Key, [.. positions]);
     }
 
-    private static TaxYearPositionSummary CreatePositionSummary(IGrouping<string, RealisedDisposal> disposalsForInstrument)
+	private static IEnumerable<TaxYearPositionEntry> CreateDisposalEntriesForTaxYear(IGrouping<TaxYear, RealisedDisposal> disposalsForTaxYear) =>
+		disposalsForTaxYear
+			.GroupBy(disposal => disposal.Isin, StringComparer.Ordinal)
+			.Select(disposalsForInstrument => CreateDisposalEntry(disposalsForTaxYear.Key, disposalsForInstrument.Key, disposalsForInstrument));
+
+	private static TaxYearPositionEntry CreateDisposalEntry(
+		TaxYear taxYear,
+		string isin,
+		IEnumerable<RealisedDisposal> disposals)
+	{
+		IEnumerable<RealisedDisposal> orderedDisposals = disposals.OrderBy(disposal => disposal.Timestamp);
+		decimal totalSold = orderedDisposals.Sum(disposal => disposal.QuantitySold);
+		decimal totalSellProceeds = orderedDisposals.Sum(disposal => disposal.SellProceeds);
+		decimal totalCostBasisOfSoldShares = orderedDisposals.Sum(disposal => disposal.CostBasisOfSoldShares);
+
+		return new TaxYearPositionEntry(
+			taxYear,
+			isin,
+			totalSold,
+			totalSellProceeds,
+			totalCostBasisOfSoldShares,
+			0m);
+	}
+
+    private static TaxYearPositionEntry CreateDividendEntry(IGrouping<(TaxYear TaxYear, string Isin), Dividend> dividendsForInstrument)
     {
-        IEnumerable<RealisedDisposal> orderedDisposals = disposalsForInstrument.OrderBy(disposal => disposal.Timestamp);
-        decimal totalSold = orderedDisposals.Sum(disposal => disposal.QuantitySold);
-        decimal totalSellProceeds = orderedDisposals.Sum(disposal => disposal.SellProceeds);
-        decimal totalCostBasisOfSoldShares = orderedDisposals.Sum(disposal => disposal.CostBasisOfSoldShares);
+        decimal totalDividends = dividendsForInstrument.Sum(dividend => dividend.Amount);
+
+        return new TaxYearPositionEntry(
+            dividendsForInstrument.Key.TaxYear,
+            dividendsForInstrument.Key.Isin,
+            0m,
+            0m,
+            0m,
+            totalDividends);
+    }
+
+    private static TaxYearPositionSummary CreatePositionSummary(IGrouping<string, TaxYearPositionEntry> entriesForInstrument)
+    {
+        decimal totalSold = entriesForInstrument.Sum(entry => entry.TotalSold);
+        decimal totalSellProceeds = entriesForInstrument.Sum(entry => entry.TotalSellProceeds);
+        decimal totalCostBasisOfSoldShares = entriesForInstrument.Sum(entry => entry.TotalCostBasisOfSoldShares);
+        decimal totalDividends = entriesForInstrument.Sum(entry => entry.TotalDividends);
 
         return new TaxYearPositionSummary(
-            disposalsForInstrument.Key,
+            entriesForInstrument.Key,
             totalSold,
             totalSellProceeds,
-            totalCostBasisOfSoldShares);
+            totalCostBasisOfSoldShares,
+            totalDividends);
     }
+
+    private sealed record TaxYearPositionEntry(
+        TaxYear TaxYear,
+        string Isin,
+        decimal TotalSold,
+        decimal TotalSellProceeds,
+        decimal TotalCostBasisOfSoldShares,
+        decimal TotalDividends);
 }

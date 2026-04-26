@@ -24,4 +24,8 @@ internal class TradeCsvRow
 
     [Name("Timestamp")] 
     public DateTimeOffset? Timestamp { get; set; }
+
+    [Optional]
+    [Name("Total Amount in Account Currency")]
+    public decimal? TotalAmountInAccountCurrency { get; set; }
 }

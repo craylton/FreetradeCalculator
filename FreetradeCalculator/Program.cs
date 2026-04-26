@@ -18,7 +18,7 @@ if (!File.Exists(inputPath))
 TradeReadResult tradeData = CsvTradeReader.ReadTradeData(inputPath);
 
 var calculator = new RealisedProfitCalculator(isin => new AveragePricePositionTracker(isin));
-IReadOnlyList<TaxYearSummary> summaries = calculator.Calculate(tradeData.Trades);
+IReadOnlyList<TaxYearSummary> summaries = calculator.Calculate(tradeData.Trades, tradeData.Dividends);
 
 ConsoleRenderer.Render(summaries, tradeData.TitlesByIsin);
 

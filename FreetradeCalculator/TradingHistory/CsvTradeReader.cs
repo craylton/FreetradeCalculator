@@ -7,6 +7,7 @@ namespace FreetradeCalculator.TradingHistory;
 public static class CsvTradeReader
 {
     private const string OrderType = "ORDER";
+    private const string DividendType = "DIVIDEND";
 
     public static TradeReadResult ReadTradeData(string path)
     {
@@ -26,11 +27,12 @@ public static class CsvTradeReader
         using var csv = new CsvHelper.CsvReader(reader, config);
 
         ValidateCsvHeaders(csv);
-        List<ParsedTrade> parsedTrades = GetParsedTradesFromCsv(csv);
-        List<Trade> trades = GetTradesFromParsedTrades(parsedTrades);
-        Dictionary<string, string> titlesByIsin = GetIsinToTitleLookup(parsedTrades);
+        List<ParsedInstrumentActivity> parsedActivities = GetParsedActivitiesFromCsv(csv);
+        List<Trade> trades = GetTradesFromParsedActivities(parsedActivities);
+        List<Dividend> dividends = GetDividendsFromParsedActivities(parsedActivities);
+        Dictionary<string, string> titlesByIsin = GetIsinToTitleLookup(parsedActivities);
 
-        return new TradeReadResult(trades, titlesByIsin);
+        return new TradeReadResult(trades, dividends, titlesByIsin);
     }
 
     private static void ValidateCsvHeaders(CsvHelper.CsvReader csv)
@@ -39,32 +41,40 @@ public static class CsvTradeReader
             throw new ValidationException("CSV appears to be empty or missing header.");
     }
 
-    private static List<ParsedTrade> GetParsedTradesFromCsv(CsvHelper.CsvReader csv) => [.. csv
+    private static List<ParsedInstrumentActivity> GetParsedActivitiesFromCsv(CsvHelper.CsvReader csv) => [.. csv
         .GetRecords<TradeCsvRow>()
-        .Where(row => string.Equals(row.Type, OrderType, StringComparison.OrdinalIgnoreCase))
-        .Select(MapOrderRowToTrade)];
+        .Where(IsSupportedInstrumentActivity)
+        .Select(MapRowToInstrumentActivity)];
 
-    private static List<Trade> GetTradesFromParsedTrades(IEnumerable<ParsedTrade> parsedTrades)
-    {
-        List<Trade> trades = [];
+    private static bool IsSupportedInstrumentActivity(TradeCsvRow row) =>
+        string.Equals(row.Type, OrderType, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(row.Type, DividendType, StringComparison.OrdinalIgnoreCase);
 
-        foreach (ParsedTrade parsedTrade in parsedTrades)
-            trades.Add(parsedTrade.Trade);
+    private static ParsedInstrumentActivity MapRowToInstrumentActivity(TradeCsvRow row) =>
+        row.Type?.ToUpperInvariant() switch
+        {
+            OrderType => MapOrderRowToTrade(row),
+            DividendType => MapDividendRowToDividend(row),
+            _ => throw new ValidationException($"Unsupported instrument activity type '{row.Type}'.")
+        };
 
-        return trades;
-    }
+    private static List<Trade> GetTradesFromParsedActivities(IEnumerable<ParsedInstrumentActivity> parsedActivities) =>
+        [.. parsedActivities.OfType<ParsedTradeActivity>().Select(parsedActivity => parsedActivity.Trade)];
 
-    private static Dictionary<string, string> GetIsinToTitleLookup(IEnumerable<ParsedTrade> parsedTrades)
+    private static List<Dividend> GetDividendsFromParsedActivities(IEnumerable<ParsedInstrumentActivity> parsedActivities) =>
+        [.. parsedActivities.OfType<ParsedDividendActivity>().Select(parsedActivity => parsedActivity.Dividend)];
+
+    private static Dictionary<string, string> GetIsinToTitleLookup(IEnumerable<ParsedInstrumentActivity> parsedActivities)
     {
         Dictionary<string, string> titlesByIsin = new(StringComparer.Ordinal);
 
-        foreach (ParsedTrade parsedTrade in parsedTrades)
-            titlesByIsin[parsedTrade.Trade.Isin] = parsedTrade.Title;
+        foreach (ParsedInstrumentActivity parsedActivity in parsedActivities)
+            titlesByIsin[parsedActivity.Isin] = parsedActivity.Title;
 
         return titlesByIsin;
     }
 
-    private static ParsedTrade MapOrderRowToTrade(TradeCsvRow row)
+    private static ParsedTradeActivity MapOrderRowToTrade(TradeCsvRow row)
     {
         if (string.IsNullOrWhiteSpace(row.Isin))
             throw new ValidationException("Invalid ORDER row: ISIN is missing.");
@@ -89,7 +99,7 @@ public static class CsvTradeReader
             _ => throw new ValidationException($"Invalid ORDER row: Buy/Sell must be BUY or SELL for '{displayTitle}'.")
         };
 
-        return new ParsedTrade(
+        return new ParsedTradeActivity(
             new Trade(
                 row.Isin,
                 side,
@@ -99,5 +109,34 @@ public static class CsvTradeReader
             displayTitle);
     }
 
-    private sealed record ParsedTrade(Trade Trade, string Title);
+    private static ParsedDividendActivity MapDividendRowToDividend(TradeCsvRow row)
+    {
+        if (string.IsNullOrWhiteSpace(row.Isin))
+            throw new ValidationException("Invalid DIVIDEND row: ISIN is missing.");
+
+        string displayTitle = string.IsNullOrWhiteSpace(row.Title)
+            ? row.Isin
+            : row.Title;
+
+        if (row.TotalAmountInAccountCurrency is not > 0)
+            throw new ValidationException($"Invalid DIVIDEND row: Amount must be > 0 for '{displayTitle}'.");
+
+        if (row.Timestamp is null)
+            throw new ValidationException($"Invalid DIVIDEND row: Could not parse Timestamp for '{displayTitle}'.");
+
+        return new ParsedDividendActivity(
+            new Dividend(
+                row.Isin,
+                row.TotalAmountInAccountCurrency.Value,
+                row.Timestamp.Value),
+            displayTitle);
+    }
+
+    private abstract record ParsedInstrumentActivity(string Isin, string Title);
+
+    private sealed record ParsedTradeActivity(Trade Trade, string Title)
+        : ParsedInstrumentActivity(Trade.Isin, Title);
+
+    private sealed record ParsedDividendActivity(Dividend Dividend, string Title)
+        : ParsedInstrumentActivity(Dividend.Isin, Title);
 }

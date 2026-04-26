@@ -45,6 +45,37 @@ public sealed class CsvTradeReaderTests
 	}
 
 	[Fact]
+	public void ReadTradeData_WhenCsvContainsDividend_ParsesDividendAndAddsTitleLookup()
+	{
+		var csv = """
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp,Total Amount in Account Currency
+			DIVIDEND,,Personal Assets,GB00BM8B5H06,,,2026-04-14T16:03:00.000Z,25.32
+			""";
+
+		var tradeData = ReadTradeDataFromCsv(csv);
+
+		Assert.Empty(tradeData.Trades);
+
+		var dividend = Assert.Single(tradeData.Dividends);
+		Assert.Equal("GB00BM8B5H06", dividend.Isin);
+		Assert.Equal(25.32m, dividend.Amount);
+		Assert.Equal(DateTimeOffset.Parse("2026-04-14T16:03:00.000Z"), dividend.Timestamp);
+		Assert.Equal("Personal Assets", tradeData.TitlesByIsin["GB00BM8B5H06"]);
+	}
+
+	[Fact]
+	public void ReadTradeData_WhenDividendAmountIsNotPositive_ThrowsValidationException()
+	{
+		var csv = """
+			Type,Buy / Sell,Title,ISIN,Price per Share in Account Currency,Quantity,Timestamp,Total Amount in Account Currency
+			DIVIDEND,,Personal Assets,GB00BM8B5H06,,,2026-04-14T16:03:00.000Z,0
+			""";
+
+		var ex = Assert.Throws<ValidationException>(() => ReadTradeDataFromCsv(csv).Dividends);
+		Assert.Contains("Amount must be > 0", ex.Message, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
 	public void ReadTrades_WhenOrderQuantityIsNegative_ThrowsValidationException()
 	{
 		var csv = """

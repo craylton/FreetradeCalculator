@@ -5,9 +5,14 @@ namespace FreetradeCalculator.Reporting;
 
 public static class ConsoleRenderer
 {
-	private record ColumnDefinition(string Header, Func<TaxYearPositionSummary, IReadOnlyDictionary<string, string>, string> GetValue, bool AlignRight = true)
+	private record ColumnDefinition(
+        string Header,
+        Func<TaxYearPositionSummary, IReadOnlyDictionary<string, string>, string> GetValue,
+        bool AlignRight = true)
     {
-		public Column ToColumn(IReadOnlyList<TaxYearPositionSummary> summaries, IReadOnlyDictionary<string, string> titlesByIsin)
+		public Column ToColumn(
+            IReadOnlyList<TaxYearPositionSummary> summaries,
+            IReadOnlyDictionary<string, string> titlesByIsin)
         {
 			string[] values = [.. summaries.Select(summary => GetValue(summary, titlesByIsin))];
             int width = Math.Max(Header.Length, values.Max(value => value.Length));
@@ -29,6 +34,7 @@ public static class ConsoleRenderer
     [
 		new("Title", (s, titlesByIsin) => GetTitle(s.Isin, titlesByIsin), false),
 		new("Sold", (s, _) => FormatQuantity(s.TotalSold)),
+		new("Dividends", (s, _) => FormatMoney(s.TotalDividends)),
 		new("Realised P&L", (s, _) => FormatMoney(s.RealisedProfit)),
 		new("Sell Proceeds", (s, _) => FormatMoney(s.TotalSellProceeds)),
 		new("Cost Basis", (s, _) => FormatMoney(s.TotalCostBasisOfSoldShares))
@@ -38,7 +44,7 @@ public static class ConsoleRenderer
     {
         if (summaries.Count == 0)
         {
-			Console.WriteLine("No realised profits found.");
+			Console.WriteLine("No realised profits or dividends found.");
             return;
         }
 
@@ -50,7 +56,11 @@ public static class ConsoleRenderer
 			TaxYearSummary summary = summaries[i];
 			Console.WriteLine($"Tax Year {summary.TaxYear}");
 			RenderPositions(summary.Positions, titlesByIsin);
-			RenderTotals(summary.TotalRealisedProfit, summary.TotalSellProceeds, summary.TotalCostBasis);
+			RenderTotals(
+                summary.TotalRealisedProfit,
+                summary.TotalSellProceeds,
+                summary.TotalCostBasis,
+                summary.TotalDividends);
         }
 
 		if (summaries.Count == 1)
@@ -59,15 +69,19 @@ public static class ConsoleRenderer
 		decimal totalRealisedProfit = summaries.Sum(summary => summary.TotalRealisedProfit);
 		decimal totalSellProceeds = summaries.Sum(summary => summary.TotalSellProceeds);
 		decimal totalCostBasis = summaries.Sum(summary => summary.TotalCostBasis);
+		decimal totalDividends = summaries.Sum(summary => summary.TotalDividends);
 
         Console.WriteLine();
 		Console.WriteLine("Overall Totals");
+		Console.WriteLine($"  Dividends    : {FormatMoney(totalDividends)}");
 		Console.WriteLine($"  Realised P&L : {FormatMoney(totalRealisedProfit)}");
 		Console.WriteLine($"  Sell Proceeds: {FormatMoney(totalSellProceeds)}");
 		Console.WriteLine($"  Cost Basis   : {FormatMoney(totalCostBasis)}");
     }
 
-	private static void RenderPositions(IReadOnlyList<TaxYearPositionSummary> summaries, IReadOnlyDictionary<string, string> titlesByIsin)
+	private static void RenderPositions(
+        IReadOnlyList<TaxYearPositionSummary> summaries,
+        IReadOnlyDictionary<string, string> titlesByIsin)
 	{
 		TaxYearPositionSummary[] orderedSummaries = [.. summaries
 			.OrderBy(summary => GetTitle(summary.Isin, titlesByIsin), StringComparer.Ordinal)
@@ -88,10 +102,15 @@ public static class ConsoleRenderer
 		}
 	}
 
-	private static void RenderTotals(decimal totalRealisedProfit, decimal totalSellProceeds, decimal totalCostBasis)
+	private static void RenderTotals(
+        decimal totalRealisedProfit,
+        decimal totalSellProceeds,
+        decimal totalCostBasis,
+        decimal totalDividends)
 	{
 		Console.WriteLine();
 		Console.WriteLine("Totals");
+		Console.WriteLine($"  Dividends    : {FormatMoney(totalDividends)}");
 		Console.WriteLine($"  Realised P&L : {FormatMoney(totalRealisedProfit)}");
 		Console.WriteLine($"  Sell Proceeds: {FormatMoney(totalSellProceeds)}");
 		Console.WriteLine($"  Cost Basis   : {FormatMoney(totalCostBasis)}");

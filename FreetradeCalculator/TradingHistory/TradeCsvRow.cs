@@ -1,6 +1,6 @@
-﻿using CsvHelper.Configuration.Attributes;
+using CsvHelper.Configuration.Attributes;
 
-namespace FreetradeCalculator.CsvReader;
+namespace FreetradeCalculator.TradingHistory;
 
 internal class TradeCsvRow
 {

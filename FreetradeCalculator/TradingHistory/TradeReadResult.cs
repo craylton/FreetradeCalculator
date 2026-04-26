@@ -1,6 +1,6 @@
-using FreetradeCalculator.Domain;
+using FreetradeCalculator.Trading;
 
-namespace FreetradeCalculator.CsvReader;
+namespace FreetradeCalculator.TradingHistory;
 
 public sealed record TradeReadResult(
 	IReadOnlyList<Trade> Trades,

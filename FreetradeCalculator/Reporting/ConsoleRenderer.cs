@@ -1,7 +1,7 @@
 using System.Globalization;
-using FreetradeCalculator.Domain;
+using FreetradeCalculator.Tax;
 
-namespace FreetradeCalculator.Output;
+namespace FreetradeCalculator.Reporting;
 
 public static class ConsoleRenderer
 {

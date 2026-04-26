@@ -1,8 +1,8 @@
 using System.Globalization;
 using CsvHelper.Configuration;
-using FreetradeCalculator.Domain;
+using FreetradeCalculator.Trading;
 
-namespace FreetradeCalculator.CsvReader;
+namespace FreetradeCalculator.TradingHistory;
 
 public static class CsvTradeReader
 {

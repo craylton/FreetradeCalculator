@@ -1,12 +1,10 @@
-namespace FreetradeCalculator.Domain;
+namespace FreetradeCalculator.Tax;
 
-public sealed record PositionSummary(
+public sealed record TaxYearPositionSummary(
 	string Isin,
-	decimal TotalBought,
 	decimal TotalSold,
 	decimal TotalSellProceeds,
 	decimal TotalCostBasisOfSoldShares)
 {
-	public decimal RemainingQuantity => TotalBought - TotalSold;
 	public decimal RealisedProfit => TotalSellProceeds - TotalCostBasisOfSoldShares;
 }

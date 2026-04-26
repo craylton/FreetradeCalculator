@@ -1,7 +1,7 @@
-﻿using FreetradeCalculator.Output;
-using FreetradeCalculator.Domain;
-using FreetradeCalculator.CsvReader;
-using FreetradeCalculator.Calculators;
+﻿using FreetradeCalculator.Positions;
+using FreetradeCalculator.Reporting;
+using FreetradeCalculator.Tax;
+using FreetradeCalculator.TradingHistory;
 
 if (args is not [string inputPath])
 {

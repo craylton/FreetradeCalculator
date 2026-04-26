@@ -1,5 +1,6 @@
-using FreetradeCalculator.Calculators;
-using FreetradeCalculator.Domain;
+using FreetradeCalculator.Positions;
+using FreetradeCalculator.Tax;
+using FreetradeCalculator.Trading;
 
 namespace FreetradeCalculator.Tests;
 

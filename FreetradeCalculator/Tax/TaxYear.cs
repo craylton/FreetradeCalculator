@@ -1,4 +1,4 @@
-namespace FreetradeCalculator.Domain;
+namespace FreetradeCalculator.Tax;
 
 public readonly record struct TaxYear(int StartYear) : IComparable<TaxYear>
 {

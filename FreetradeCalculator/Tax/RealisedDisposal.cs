@@ -1,4 +1,4 @@
-namespace FreetradeCalculator.Domain;
+namespace FreetradeCalculator.Tax;
 
 public sealed record RealisedDisposal(
 	string Isin,

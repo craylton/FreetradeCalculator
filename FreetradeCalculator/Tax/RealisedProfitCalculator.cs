@@ -1,6 +1,7 @@
-using FreetradeCalculator.Domain;
+using FreetradeCalculator.Positions;
+using FreetradeCalculator.Trading;
 
-namespace FreetradeCalculator.Calculators;
+namespace FreetradeCalculator.Tax;
 
 public sealed class RealisedProfitCalculator(Func<string, IPositionTrackingStrategy> strategyFactory)
 {

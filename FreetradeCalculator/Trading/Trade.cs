@@ -1,4 +1,4 @@
-namespace FreetradeCalculator.Domain;
+namespace FreetradeCalculator.Trading;
 
 public record Trade(
 	string Isin,
